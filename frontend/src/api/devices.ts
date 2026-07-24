@@ -6,6 +6,7 @@ export interface DeviceDto {
   publicKey: string;
   label: string;
   status: "active" | "assigned" | "revoked";
+  inTransit?: boolean;
   createdAt: string;
 }
 

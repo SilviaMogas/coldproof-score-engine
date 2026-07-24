@@ -168,7 +168,9 @@ export default function DevicesPage() {
                               : "rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
                         }
                       >
-                        {d.status}
+                        {d.status === "assigned" && d.inTransit
+                          ? "assigned - in transit"
+                          : d.status}
                       </span>
                     </td>
                     <td className="px-6 py-3 text-slate-500">

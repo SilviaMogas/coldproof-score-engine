@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
   // Use cases (application).
   const registerDevice = new RegisterDevice(deviceRepository);
-  const listDevices = new ListDevices(deviceRepository);
+  const listDevices = new ListDevices(deviceRepository, deliveryRepository);
   const deleteDevice = new DeleteDevice(deviceRepository);
   const registerCarrier = new RegisterCarrier(
     carrierRepository

@@ -2,7 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Device } from "../../../domain/device/device.js";
 import type { RegisterDevice } from "../../../application/device/register-device.js";
-import type { ListDevices } from "../../../application/device/list-devices.js";
+import type {
+  ListDevices,
+  DeviceView,
+} from "../../../application/device/list-devices.js";
 import type { DeleteDevice } from "../../../application/device/delete-device.js";
 import { ValidationError } from "../../../shared/errors.js";
 
@@ -32,7 +35,7 @@ export function deviceRoutes(deps: DeviceRoutesDeps) {
       { preHandler: app.authenticate },
       async () => {
         const devices = await deps.listDevices.execute();
-        return { devices: devices.map(toDto) };
+        return { devices: devices.map(toViewDto) };
       }
     );
 
@@ -83,5 +86,12 @@ function toDto(d: Device) {
     label: d.label,
     status: d.status,
     createdAt: d.createdAt.toISOString(),
+  };
+}
+
+function toViewDto(d: DeviceView) {
+  return {
+    ...toDto(d),
+    inTransit: d.inTransit,
   };
 }
