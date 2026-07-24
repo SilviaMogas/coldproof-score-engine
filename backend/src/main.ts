@@ -1,0 +1,47 @@
+import { loadEnv } from "./config/env.js";
+import { createLogger } from "./shared/logger.js";
+import { InMemoryDeviceRepository } from "./infrastructure/persistence/in-memory-device-repository.js";
+import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
+import { RegisterDevice } from "./application/device/register-device.js";
+import { ListDevices } from "./application/device/list-devices.js";
+import { buildServer } from "./interface/http/server.js";
+
+/**
+ * Composition root: build every concrete dependency once and wire the layers
+ * together, then start the HTTP server.
+ */
+async function main(): Promise<void> {
+  const env = loadEnv();
+  const logger = createLogger({
+    level: env.LOG_LEVEL,
+    pretty: env.LOG_PRETTY,
+  });
+
+  // Adapters (infrastructure).
+  const deviceRepository = new InMemoryDeviceRepository();
+  const verifier = new CognitoTokenVerifier({
+    userPoolId: env.COGNITO_USER_POOL_ID,
+    clientId: env.COGNITO_CLIENT_ID,
+    tokenUse: env.COGNITO_TOKEN_USE,
+  });
+
+  // Use cases (application).
+  const registerDevice = new RegisterDevice(deviceRepository);
+  const listDevices = new ListDevices(deviceRepository);
+
+  const app = await buildServer({
+    logger,
+    verifier,
+    registerDevice,
+    listDevices,
+  });
+
+  try {
+    await app.listen({ host: env.HOST, port: env.PORT });
+  } catch (err) {
+    logger.error({ err }, "failed to start server");
+    process.exit(1);
+  }
+}
+
+void main();
