@@ -163,7 +163,9 @@ export default function DevicesPage() {
                         className={
                           d.status === "active"
                             ? "rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-                            : "rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+                            : d.status === "assigned"
+                              ? "rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+                              : "rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
                         }
                       >
                         {d.status}
@@ -175,7 +177,13 @@ export default function DevicesPage() {
                     <td className="px-6 py-3 text-right">
                       <button
                         onClick={() => setDeleteTarget(d)}
-                        className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                        disabled={d.status === "assigned"}
+                        title={
+                          d.status === "assigned"
+                            ? "Assigned to a delivery. Finish the delivery first."
+                            : undefined
+                        }
+                        className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Delete
                       </button>

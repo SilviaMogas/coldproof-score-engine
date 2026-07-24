@@ -4,6 +4,7 @@ import { CenteredCard } from "./components/CenteredCard";
 import { Layout } from "./components/Layout";
 import DevicesPage from "./pages/DevicesPage";
 import CarriersPage from "./pages/CarriersPage";
+import DeliveriesPage from "./pages/DeliveriesPage";
 import { config } from "./config";
 
 export default function App() {
@@ -68,6 +69,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<DevicesPage />} />
         <Route path="/carriers" element={<CarriersPage />} />
+        <Route path="/deliveries" element={<DeliveriesPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

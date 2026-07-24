@@ -5,7 +5,7 @@ export interface DeviceDto {
   deviceId: string;
   publicKey: string;
   label: string;
-  status: "active" | "revoked";
+  status: "active" | "assigned" | "revoked";
   createdAt: string;
 }
 
