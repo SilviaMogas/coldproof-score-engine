@@ -8,4 +8,5 @@ export interface DeviceRepository {
   save(device: Device): Promise<void>;
   findByDeviceId(deviceId: string): Promise<Device | null>;
   list(): Promise<Device[]>;
+  delete(deviceId: string): Promise<void>;
 }

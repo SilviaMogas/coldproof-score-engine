@@ -16,4 +16,8 @@ export class InMemoryDeviceRepository implements DeviceRepository {
   async list(): Promise<Device[]> {
     return [...this.store.values()];
   }
+
+  async delete(deviceId: string): Promise<void> {
+    this.store.delete(deviceId);
+  }
 }

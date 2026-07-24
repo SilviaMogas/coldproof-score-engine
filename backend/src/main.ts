@@ -4,6 +4,7 @@ import { InMemoryDeviceRepository } from "./infrastructure/persistence/in-memory
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
 import { RegisterDevice } from "./application/device/register-device.js";
 import { ListDevices } from "./application/device/list-devices.js";
+import { DeleteDevice } from "./application/device/delete-device.js";
 import { buildServer } from "./interface/http/server.js";
 
 /**
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   // Use cases (application).
   const registerDevice = new RegisterDevice(deviceRepository);
   const listDevices = new ListDevices(deviceRepository);
+  const deleteDevice = new DeleteDevice(deviceRepository);
 
   const app = await buildServer({
     logger,
@@ -35,6 +37,7 @@ async function main(): Promise<void> {
     verifier,
     registerDevice,
     listDevices,
+    deleteDevice,
   });
 
   try {
