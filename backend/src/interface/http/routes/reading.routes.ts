@@ -37,7 +37,9 @@ export function readingRoutes(deps: ReadingRoutesDeps) {
         );
       }
 
-      const reading = await deps.ingestReading.execute(parsed.data);
+      const { reading, consensus } = await deps.ingestReading.execute(
+        parsed.data
+      );
       reply.code(201);
       return {
         ok: true,
@@ -48,6 +50,7 @@ export function readingRoutes(deps: ReadingRoutesDeps) {
         unit: reading.unit,
         ts: reading.ts,
         receivedAt: reading.receivedAt.toISOString(),
+        consensus,
       };
     });
 

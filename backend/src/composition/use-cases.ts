@@ -1,4 +1,5 @@
 import type { SignatureVerifier } from "../application/ports/signature-verifier.js";
+import type { ConsensusLog } from "../application/ports/consensus-log.js";
 import type { Repositories } from "./repositories.js";
 import { RegisterDevice } from "../application/device/register-device.js";
 import { ListDevices } from "../application/device/list-devices.js";
@@ -39,7 +40,8 @@ export interface UseCases {
  */
 export function createUseCases(
   repos: Repositories,
-  signatureVerifier: SignatureVerifier
+  signatureVerifier: SignatureVerifier,
+  consensusLog: ConsensusLog
 ): UseCases {
   const { devices, carriers, deliveries, readings } = repos;
   return {
@@ -55,7 +57,12 @@ export function createUseCases(
     startDelivery: new StartDelivery(deliveries),
     finishDelivery: new FinishDelivery(deliveries, devices),
     listAvailableDevices: new ListAvailableDevices(devices),
-    ingestReading: new IngestReading(readings, devices, signatureVerifier),
+    ingestReading: new IngestReading(
+      readings,
+      devices,
+      signatureVerifier,
+      consensusLog
+    ),
     listReadings: new ListReadings(readings),
   };
 }

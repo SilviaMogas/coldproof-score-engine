@@ -33,6 +33,15 @@ const schema = z.object({
   COGNITO_USER_POOL_ID: z.string().min(1),
   COGNITO_CLIENT_ID: z.string().min(1),
   COGNITO_TOKEN_USE: z.enum(["access", "id"]).default("access"),
+
+  // Hedera Consensus Service. When operator credentials are omitted, readings
+  // are persisted but not mirrored to HCS (a no-op log is used).
+  HEDERA_NETWORK: z
+    .enum(["testnet", "previewnet", "mainnet"])
+    .default("testnet"),
+  HEDERA_OPERATOR_ID: z.string().optional(),
+  HEDERA_OPERATOR_KEY: z.string().optional(),
+  HEDERA_TOPIC_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

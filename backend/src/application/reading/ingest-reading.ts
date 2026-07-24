@@ -4,6 +4,10 @@ import { createReading } from "../../domain/reading/reading.js";
 import type { ReadingRepository } from "../../domain/reading/reading-repository.js";
 import type { DeviceRepository } from "../../domain/device/device-repository.js";
 import type { SignatureVerifier } from "../ports/signature-verifier.js";
+import type {
+  ConsensusLog,
+  ConsensusReceipt,
+} from "../ports/consensus-log.js";
 import {
   ForbiddenError,
   UnauthorizedError,
@@ -15,6 +19,12 @@ export interface IngestReadingInput {
   message: string;
   publicKey: string;
   signature: string;
+}
+
+/** The persisted reading plus its consensus-log receipt, if it was mirrored. */
+export interface IngestReadingResult {
+  reading: Reading;
+  consensus: ConsensusReceipt | null;
 }
 
 /** Schema of the canonical reading JSON the device signs (see firmware). */
@@ -35,10 +45,11 @@ export class IngestReading {
   constructor(
     private readonly readings: ReadingRepository,
     private readonly devices: DeviceRepository,
-    private readonly verifier: SignatureVerifier
+    private readonly verifier: SignatureVerifier,
+    private readonly consensusLog: ConsensusLog
   ) {}
 
-  async execute(input: IngestReadingInput): Promise<Reading> {
+  async execute(input: IngestReadingInput): Promise<IngestReadingResult> {
     const publicKey = input.publicKey?.trim().toLowerCase();
     const signature = input.signature?.trim().toLowerCase();
 
@@ -93,6 +104,10 @@ export class IngestReading {
       signature,
     });
     await this.readings.save(reading);
-    return reading;
+
+    // 4. Mirror the authenticated reading to the immutable consensus log.
+    //    Best-effort: a null receipt means it was not committed to HCS.
+    const consensus = await this.consensusLog.publish(reading);
+    return { reading, consensus };
   }
 }
