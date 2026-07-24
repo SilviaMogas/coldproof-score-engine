@@ -8,11 +8,18 @@ import type { DeleteDevice } from "../../application/device/delete-device.js";
 import type { RegisterCarrier } from "../../application/carrier/register-carrier.js";
 import type { ListCarriers } from "../../application/carrier/list-carriers.js";
 import type { DeleteCarrier } from "../../application/carrier/delete-carrier.js";
+import type { RegisterDelivery } from "../../application/delivery/register-delivery.js";
+import type { ListDeliveries } from "../../application/delivery/list-deliveries.js";
+import type { DeleteDelivery } from "../../application/delivery/delete-delivery.js";
+import type { StartDelivery } from "../../application/delivery/start-delivery.js";
+import type { FinishDelivery } from "../../application/delivery/finish-delivery.js";
+import type { ListAvailableDevices } from "../../application/delivery/list-available-devices.js";
 import { AppError } from "../../shared/errors.js";
 import { authPlugin } from "./plugins/auth.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { deviceRoutes } from "./routes/device.routes.js";
 import { carrierRoutes } from "./routes/carrier.routes.js";
+import { deliveryRoutes } from "./routes/delivery.routes.js";
 
 export interface ServerDeps {
   logger: Logger;
@@ -24,6 +31,12 @@ export interface ServerDeps {
   registerCarrier: RegisterCarrier;
   listCarriers: ListCarriers;
   deleteCarrier: DeleteCarrier;
+  registerDelivery: RegisterDelivery;
+  listDeliveries: ListDeliveries;
+  deleteDelivery: DeleteDelivery;
+  startDelivery: StartDelivery;
+  finishDelivery: FinishDelivery;
+  listAvailableDevices: ListAvailableDevices;
 }
 
 /**
@@ -101,6 +114,16 @@ export async function buildServer(deps: ServerDeps) {
       registerCarrier: deps.registerCarrier,
       listCarriers: deps.listCarriers,
       deleteCarrier: deps.deleteCarrier,
+    })
+  );
+  await app.register(
+    deliveryRoutes({
+      registerDelivery: deps.registerDelivery,
+      listDeliveries: deps.listDeliveries,
+      deleteDelivery: deps.deleteDelivery,
+      startDelivery: deps.startDelivery,
+      finishDelivery: deps.finishDelivery,
+      listAvailableDevices: deps.listAvailableDevices,
     })
   );
 

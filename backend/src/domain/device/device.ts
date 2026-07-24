@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { ValidationError } from "../../shared/errors.js";
 
-export type DeviceStatus = "active" | "revoked";
+/**
+ * A device is `active` when free to use, `assigned` while it is tied to an
+ * in-transit delivery (locked from deletion and reassignment), and `revoked`
+ * once retired.
+ */
+export type DeviceStatus = "active" | "assigned" | "revoked";
 
 /**
  * A registered sensor device in the backoffice. Its Ed25519 public key is what
@@ -53,4 +58,22 @@ export function createDevice(props: CreateDeviceProps): Device {
     status: "active",
     createdAt: new Date(),
   };
+}
+
+/** Locks a device to an in-transit delivery. Only an active device can be assigned. */
+export function assignDevice(device: Device): Device {
+  if (device.status !== "active") {
+    throw new ValidationError(
+      `device '${device.deviceId}' is not available for assignment`
+    );
+  }
+  return { ...device, status: "assigned" };
+}
+
+/** Frees an assigned device so it can be reused by another delivery. */
+export function releaseDevice(device: Device): Device {
+  if (device.status !== "assigned") {
+    return device;
+  }
+  return { ...device, status: "active" };
 }

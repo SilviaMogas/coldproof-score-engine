@@ -6,6 +6,9 @@ import { SqliteDeviceRepository } from "./infrastructure/persistence/sqlite-devi
 import type { CarrierRepository } from "./domain/carrier/carrier-repository.js";
 import { InMemoryCarrierRepository } from "./infrastructure/persistence/in-memory-carrier-repository.js";
 import { SqliteCarrierRepository } from "./infrastructure/persistence/sqlite-carrier-repository.js";
+import type { DeliveryRepository } from "./domain/delivery/delivery-repository.js";
+import { InMemoryDeliveryRepository } from "./infrastructure/persistence/in-memory-delivery-repository.js";
+import { SqliteDeliveryRepository } from "./infrastructure/persistence/sqlite-delivery-repository.js";
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
 import { RegisterDevice } from "./application/device/register-device.js";
 import { ListDevices } from "./application/device/list-devices.js";
@@ -13,6 +16,12 @@ import { DeleteDevice } from "./application/device/delete-device.js";
 import { RegisterCarrier } from "./application/carrier/register-carrier.js";
 import { ListCarriers } from "./application/carrier/list-carriers.js";
 import { DeleteCarrier } from "./application/carrier/delete-carrier.js";
+import { RegisterDelivery } from "./application/delivery/register-delivery.js";
+import { ListDeliveries } from "./application/delivery/list-deliveries.js";
+import { DeleteDelivery } from "./application/delivery/delete-delivery.js";
+import { StartDelivery } from "./application/delivery/start-delivery.js";
+import { FinishDelivery } from "./application/delivery/finish-delivery.js";
+import { ListAvailableDevices } from "./application/delivery/list-available-devices.js";
 import { buildServer } from "./interface/http/server.js";
 
 /**
@@ -35,6 +44,10 @@ async function main(): Promise<void> {
     env.PERSISTENCE === "sqlite"
       ? new SqliteCarrierRepository(env.SQLITE_PATH)
       : new InMemoryCarrierRepository();
+  const deliveryRepository: DeliveryRepository =
+    env.PERSISTENCE === "sqlite"
+      ? new SqliteDeliveryRepository(env.SQLITE_PATH)
+      : new InMemoryDeliveryRepository();
   logger.info({ persistence: env.PERSISTENCE }, "device repository ready");
   const verifier = new CognitoTokenVerifier({
     userPoolId: env.COGNITO_USER_POOL_ID,
@@ -51,6 +64,23 @@ async function main(): Promise<void> {
   );
   const listCarriers = new ListCarriers(carrierRepository);
   const deleteCarrier = new DeleteCarrier(carrierRepository);
+  const registerDelivery = new RegisterDelivery(
+    deliveryRepository,
+    deviceRepository,
+    carrierRepository
+  );
+  const listDeliveries = new ListDeliveries(
+    deliveryRepository,
+    deviceRepository,
+    carrierRepository
+  );
+  const deleteDelivery = new DeleteDelivery(deliveryRepository, deviceRepository);
+  const startDelivery = new StartDelivery(deliveryRepository);
+  const finishDelivery = new FinishDelivery(
+    deliveryRepository,
+    deviceRepository
+  );
+  const listAvailableDevices = new ListAvailableDevices(deviceRepository);
 
   const app = await buildServer({
     logger,
@@ -62,6 +92,12 @@ async function main(): Promise<void> {
     registerCarrier,
     listCarriers,
     deleteCarrier,
+    registerDelivery,
+    listDeliveries,
+    deleteDelivery,
+    startDelivery,
+    finishDelivery,
+    listAvailableDevices,
   });
 
   try {
