@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import type { Logger } from "pino";
 import type { TokenVerifier } from "../../application/ports/token-verifier.js";
 import type { RegisterDevice } from "../../application/device/register-device.js";
@@ -10,6 +11,7 @@ import { deviceRoutes } from "./routes/device.routes.js";
 
 export interface ServerDeps {
   logger: Logger;
+  corsOrigin: string[];
   verifier: TokenVerifier;
   registerDevice: RegisterDevice;
   listDevices: ListDevices;
@@ -36,6 +38,7 @@ export async function buildServer(deps: ServerDeps) {
       .send({ error: { code: "INTERNAL", message: "internal server error" } });
   });
 
+  await app.register(cors, { origin: deps.corsOrigin });
   await app.register(authPlugin, { verifier: deps.verifier });
   await app.register(healthRoutes);
   await app.register(

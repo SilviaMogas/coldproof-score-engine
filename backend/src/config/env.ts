@@ -16,6 +16,16 @@ const schema = z.object({
     .default("true")
     .transform((v) => v === "true"),
 
+  CORS_ORIGIN: z
+    .string()
+    .default("http://localhost:5173")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    ),
+
   COGNITO_REGION: z.string().optional(),
   COGNITO_USER_POOL_ID: z.string().min(1),
   COGNITO_CLIENT_ID: z.string().min(1),

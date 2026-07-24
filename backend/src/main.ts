@@ -31,6 +31,7 @@ async function main(): Promise<void> {
 
   const app = await buildServer({
     logger,
+    corsOrigin: env.CORS_ORIGIN,
     verifier,
     registerDevice,
     listDevices,
