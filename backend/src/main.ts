@@ -3,10 +3,16 @@ import { createLogger } from "./shared/logger.js";
 import type { DeviceRepository } from "./domain/device/device-repository.js";
 import { InMemoryDeviceRepository } from "./infrastructure/persistence/in-memory-device-repository.js";
 import { SqliteDeviceRepository } from "./infrastructure/persistence/sqlite-device-repository.js";
+import type { CarrierRepository } from "./domain/carrier/carrier-repository.js";
+import { InMemoryCarrierRepository } from "./infrastructure/persistence/in-memory-carrier-repository.js";
+import { SqliteCarrierRepository } from "./infrastructure/persistence/sqlite-carrier-repository.js";
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
 import { RegisterDevice } from "./application/device/register-device.js";
 import { ListDevices } from "./application/device/list-devices.js";
 import { DeleteDevice } from "./application/device/delete-device.js";
+import { RegisterCarrier } from "./application/carrier/register-carrier.js";
+import { ListCarriers } from "./application/carrier/list-carriers.js";
+import { DeleteCarrier } from "./application/carrier/delete-carrier.js";
 import { buildServer } from "./interface/http/server.js";
 
 /**
@@ -25,6 +31,10 @@ async function main(): Promise<void> {
     env.PERSISTENCE === "sqlite"
       ? new SqliteDeviceRepository(env.SQLITE_PATH)
       : new InMemoryDeviceRepository();
+  const carrierRepository: CarrierRepository =
+    env.PERSISTENCE === "sqlite"
+      ? new SqliteCarrierRepository(env.SQLITE_PATH)
+      : new InMemoryCarrierRepository();
   logger.info({ persistence: env.PERSISTENCE }, "device repository ready");
   const verifier = new CognitoTokenVerifier({
     userPoolId: env.COGNITO_USER_POOL_ID,
@@ -36,6 +46,11 @@ async function main(): Promise<void> {
   const registerDevice = new RegisterDevice(deviceRepository);
   const listDevices = new ListDevices(deviceRepository);
   const deleteDevice = new DeleteDevice(deviceRepository);
+  const registerCarrier = new RegisterCarrier(
+    carrierRepository
+  );
+  const listCarriers = new ListCarriers(carrierRepository);
+  const deleteCarrier = new DeleteCarrier(carrierRepository);
 
   const app = await buildServer({
     logger,
@@ -44,6 +59,9 @@ async function main(): Promise<void> {
     registerDevice,
     listDevices,
     deleteDevice,
+    registerCarrier,
+    listCarriers,
+    deleteCarrier,
   });
 
   try {

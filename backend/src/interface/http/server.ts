@@ -5,10 +5,14 @@ import type { TokenVerifier } from "../../application/ports/token-verifier.js";
 import type { RegisterDevice } from "../../application/device/register-device.js";
 import type { ListDevices } from "../../application/device/list-devices.js";
 import type { DeleteDevice } from "../../application/device/delete-device.js";
+import type { RegisterCarrier } from "../../application/carrier/register-carrier.js";
+import type { ListCarriers } from "../../application/carrier/list-carriers.js";
+import type { DeleteCarrier } from "../../application/carrier/delete-carrier.js";
 import { AppError } from "../../shared/errors.js";
 import { authPlugin } from "./plugins/auth.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { deviceRoutes } from "./routes/device.routes.js";
+import { carrierRoutes } from "./routes/carrier.routes.js";
 
 export interface ServerDeps {
   logger: Logger;
@@ -17,6 +21,9 @@ export interface ServerDeps {
   registerDevice: RegisterDevice;
   listDevices: ListDevices;
   deleteDevice: DeleteDevice;
+  registerCarrier: RegisterCarrier;
+  listCarriers: ListCarriers;
+  deleteCarrier: DeleteCarrier;
 }
 
 /**
@@ -87,6 +94,13 @@ export async function buildServer(deps: ServerDeps) {
       registerDevice: deps.registerDevice,
       listDevices: deps.listDevices,
       deleteDevice: deps.deleteDevice,
+    })
+  );
+  await app.register(
+    carrierRoutes({
+      registerCarrier: deps.registerCarrier,
+      listCarriers: deps.listCarriers,
+      deleteCarrier: deps.deleteCarrier,
     })
   );
 
