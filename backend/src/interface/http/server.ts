@@ -14,12 +14,15 @@ import type { DeleteDelivery } from "../../application/delivery/delete-delivery.
 import type { StartDelivery } from "../../application/delivery/start-delivery.js";
 import type { FinishDelivery } from "../../application/delivery/finish-delivery.js";
 import type { ListAvailableDevices } from "../../application/delivery/list-available-devices.js";
+import type { IngestReading } from "../../application/reading/ingest-reading.js";
+import type { ListReadings } from "../../application/reading/list-readings.js";
 import { AppError } from "../../shared/errors.js";
 import { authPlugin } from "./plugins/auth.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { deviceRoutes } from "./routes/device.routes.js";
 import { carrierRoutes } from "./routes/carrier.routes.js";
 import { deliveryRoutes } from "./routes/delivery.routes.js";
+import { readingRoutes } from "./routes/reading.routes.js";
 
 export interface ServerDeps {
   logger: Logger;
@@ -37,6 +40,8 @@ export interface ServerDeps {
   startDelivery: StartDelivery;
   finishDelivery: FinishDelivery;
   listAvailableDevices: ListAvailableDevices;
+  ingestReading: IngestReading;
+  listReadings: ListReadings;
 }
 
 /**
@@ -124,6 +129,12 @@ export async function buildServer(deps: ServerDeps) {
       startDelivery: deps.startDelivery,
       finishDelivery: deps.finishDelivery,
       listAvailableDevices: deps.listAvailableDevices,
+    })
+  );
+  await app.register(
+    readingRoutes({
+      ingestReading: deps.ingestReading,
+      listReadings: deps.listReadings,
     })
   );
 

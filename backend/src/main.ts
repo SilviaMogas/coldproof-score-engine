@@ -9,7 +9,11 @@ import { SqliteCarrierRepository } from "./infrastructure/persistence/sqlite-car
 import type { DeliveryRepository } from "./domain/delivery/delivery-repository.js";
 import { InMemoryDeliveryRepository } from "./infrastructure/persistence/in-memory-delivery-repository.js";
 import { SqliteDeliveryRepository } from "./infrastructure/persistence/sqlite-delivery-repository.js";
+import type { ReadingRepository } from "./domain/reading/reading-repository.js";
+import { InMemoryReadingRepository } from "./infrastructure/persistence/in-memory-reading-repository.js";
+import { SqliteReadingRepository } from "./infrastructure/persistence/sqlite-reading-repository.js";
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
+import { Ed25519SignatureVerifier } from "./infrastructure/crypto/ed25519-signature-verifier.js";
 import { RegisterDevice } from "./application/device/register-device.js";
 import { ListDevices } from "./application/device/list-devices.js";
 import { DeleteDevice } from "./application/device/delete-device.js";
@@ -22,6 +26,8 @@ import { DeleteDelivery } from "./application/delivery/delete-delivery.js";
 import { StartDelivery } from "./application/delivery/start-delivery.js";
 import { FinishDelivery } from "./application/delivery/finish-delivery.js";
 import { ListAvailableDevices } from "./application/delivery/list-available-devices.js";
+import { IngestReading } from "./application/reading/ingest-reading.js";
+import { ListReadings } from "./application/reading/list-readings.js";
 import { buildServer } from "./interface/http/server.js";
 
 /**
@@ -48,12 +54,17 @@ async function main(): Promise<void> {
     env.PERSISTENCE === "sqlite"
       ? new SqliteDeliveryRepository(env.SQLITE_PATH)
       : new InMemoryDeliveryRepository();
+  const readingRepository: ReadingRepository =
+    env.PERSISTENCE === "sqlite"
+      ? new SqliteReadingRepository(env.SQLITE_PATH)
+      : new InMemoryReadingRepository();
   logger.info({ persistence: env.PERSISTENCE }, "device repository ready");
   const verifier = new CognitoTokenVerifier({
     userPoolId: env.COGNITO_USER_POOL_ID,
     clientId: env.COGNITO_CLIENT_ID,
     tokenUse: env.COGNITO_TOKEN_USE,
   });
+  const signatureVerifier = new Ed25519SignatureVerifier();
 
   // Use cases (application).
   const registerDevice = new RegisterDevice(deviceRepository);
@@ -81,6 +92,12 @@ async function main(): Promise<void> {
     deviceRepository
   );
   const listAvailableDevices = new ListAvailableDevices(deviceRepository);
+  const ingestReading = new IngestReading(
+    readingRepository,
+    deviceRepository,
+    signatureVerifier
+  );
+  const listReadings = new ListReadings(readingRepository);
 
   const app = await buildServer({
     logger,
@@ -98,6 +115,8 @@ async function main(): Promise<void> {
     startDelivery,
     finishDelivery,
     listAvailableDevices,
+    ingestReading,
+    listReadings,
   });
 
   try {
