@@ -1,6 +1,8 @@
 import { loadEnv } from "./config/env.js";
 import { createLogger } from "./shared/logger.js";
+import type { DeviceRepository } from "./domain/device/device-repository.js";
 import { InMemoryDeviceRepository } from "./infrastructure/persistence/in-memory-device-repository.js";
+import { SqliteDeviceRepository } from "./infrastructure/persistence/sqlite-device-repository.js";
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
 import { RegisterDevice } from "./application/device/register-device.js";
 import { ListDevices } from "./application/device/list-devices.js";
@@ -19,7 +21,11 @@ async function main(): Promise<void> {
   });
 
   // Adapters (infrastructure).
-  const deviceRepository = new InMemoryDeviceRepository();
+  const deviceRepository: DeviceRepository =
+    env.PERSISTENCE === "sqlite"
+      ? new SqliteDeviceRepository(env.SQLITE_PATH)
+      : new InMemoryDeviceRepository();
+  logger.info({ persistence: env.PERSISTENCE }, "device repository ready");
   const verifier = new CognitoTokenVerifier({
     userPoolId: env.COGNITO_USER_POOL_ID,
     clientId: env.COGNITO_CLIENT_ID,

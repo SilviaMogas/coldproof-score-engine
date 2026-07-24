@@ -26,6 +26,9 @@ const schema = z.object({
         .filter(Boolean)
     ),
 
+  PERSISTENCE: z.enum(["memory", "sqlite"]).default("memory"),
+  SQLITE_PATH: z.string().min(1).default("./data/coldproof.db"),
+
   COGNITO_REGION: z.string().optional(),
   COGNITO_USER_POOL_ID: z.string().min(1),
   COGNITO_CLIENT_ID: z.string().min(1),
