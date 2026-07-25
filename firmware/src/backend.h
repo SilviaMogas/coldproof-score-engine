@@ -13,3 +13,7 @@ void sendReading();
 
 // Runs the full unlock handshake; opens the box only on a verified command.
 void requestUnlock();
+
+// Notifies the backend that the box was sealed, starting its delivery.
+// Returns true if the backend confirmed the delivery is in transit.
+bool sealDelivery();

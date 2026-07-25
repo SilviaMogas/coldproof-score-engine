@@ -174,6 +174,64 @@ void requestUnlock() {
   }
 }
 
+bool sealDelivery() {
+  LOGI("sl", "box sealed -> starting delivery via %s", SEAL_URL);
+
+  String nonce = generateNonce();
+  LOGD("sl", "generated nonce: %s", nonce.c_str());
+
+  char message[192];
+  snprintf(message, sizeof(message),
+           "{\"deviceId\":\"%s\",\"nonce\":\"%s\",\"ts\":%lu}", DEVICE_ID,
+           nonce.c_str(), epochSeconds());
+
+  uint8_t signature[64];
+  deviceSign((const uint8_t *)message, strlen(message), signature);
+
+  char sigHex[129];
+  bytesToHex(signature, 64, sigHex);
+
+  String body = String("{\"message\":") + jsonString(message) +
+                ",\"publicKey\":\"" + devicePublicKeyHex() + "\"" +
+                ",\"signature\":\"" + sigHex + "\"}";
+  LOGD("sl", "signed request: %s", message);
+
+  HTTPClient http;
+  http.begin(SEAL_URL);
+  http.addHeader("Content-Type", "application/json");
+  unsigned long startedAt = millis();
+  int code = http.POST(body);
+  LOGD("sl", "  <- HTTP %d in %lu ms", code, millis() - startedAt);
+
+  if (code != 200) {
+    String resp = code > 0 ? http.getString() : http.errorToString(code);
+    LOGW("sl", "  seal HTTP %d: %s", code, resp.c_str());
+    http.end();
+    return false;
+  }
+
+  String resp = http.getString();
+  http.end();
+  LOGD("sl", "  response: %s", resp.c_str());
+
+  JsonDocument doc;
+  if (deserializeJson(doc, resp)) {
+    LOGE("sl", "  bad seal response JSON");
+    return false;
+  }
+
+  bool sealed = doc["sealed"] | false;
+  if (!sealed) {
+    const char *reason = doc["reason"] | "not_started";
+    LOGW("sl", "  delivery NOT started by backend: %s", reason);
+    return false;
+  }
+
+  const char *deliveryId = doc["deliveryId"] | "?";
+  LOGI("sl", "  delivery in transit (id=%s)", deliveryId);
+  return true;
+}
+
 // Verifies the backend-signed unlock command and its bound fields.
 static bool verifyUnlockCommand(const String &command, const String &sigHex,
                                 const String &expectedNonce) {

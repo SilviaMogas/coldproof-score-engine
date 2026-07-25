@@ -20,10 +20,14 @@ static Servo latchServo;
 static BoxState state = BOX_UNLOCKED;
 
 // Button is normally-open to GND with INPUT_PULLUP, so it reads HIGH at rest
-// and LOW while pressed. A falling-edge interrupt flags a debounced press so a
-// long blocking HTTP call in loop() can never miss it.
+// and LOW while pressed. A change interrupt tracks the real level on every edge
+// (buttonDown) and latches one press per push, with a lockout that rejects
+// bounce and accidental double-taps. Because buttonDown always mirrors the pin,
+// the state machine can never deadlock even if a release edge bounces.
 static volatile bool buttonPressPending = false;
-static volatile unsigned long lastButtonIsrMs = 0;
+static volatile bool buttonDown = false;
+static volatile unsigned long lastButtonPressMs = 0;
+static volatile unsigned long lastButtonEdgeMs = 0;
 
 // Reed change interrupt: flags that the door state moved so loop() logs the
 // transition even while an HTTP request is in flight.
@@ -57,10 +61,21 @@ const char *boxStateName(BoxState s) {
 
 static void IRAM_ATTR buttonIsr() {
   unsigned long now = millis();
-  // Ignore edges within the debounce window (contact bounce).
-  if (now - lastButtonIsrMs < 40) return;
-  lastButtonIsrMs = now;
-  buttonPressPending = true;
+  bool low = digitalRead(BUTTON_GPIO) == LOW;
+  if (low && !buttonDown) {
+    buttonDown = true;
+    // Latch a press only when the line has been quiet for a bounce window (so
+    // release-bounce after a long hold is not seen as a new press) and we are
+    // past the repeat lockout of the previous accepted press.
+    if (now - lastButtonEdgeMs > 50 && now - lastButtonPressMs > 200) {
+      buttonPressPending = true;
+      lastButtonPressMs = now;
+    }
+  } else if (!low && buttonDown) {
+    // Release edge: always re-sync so a new press can be accepted later.
+    buttonDown = false;
+  }
+  lastButtonEdgeMs = now;
 }
 
 static void IRAM_ATTR reedIsr() {
@@ -86,10 +101,10 @@ void boxBegin() {
        REED_GPIO, BUTTON_GPIO, LED_GREEN_GPIO, LED_RED_GPIO, SERVO_GPIO,
        DS18B20_GPIO);
 
-  // Button press is the HIGH->LOW edge; reed changes on either edge.
-  attachInterrupt(digitalPinToInterrupt(BUTTON_GPIO), buttonIsr, FALLING);
+  // Button press/release and reed changes both run on CHANGE interrupts.
+  attachInterrupt(digitalPinToInterrupt(BUTTON_GPIO), buttonIsr, CHANGE);
   attachInterrupt(digitalPinToInterrupt(REED_GPIO), reedIsr, CHANGE);
-  LOGD("box", "interrupts attached (button FALLING, reed CHANGE)");
+  LOGD("box", "interrupts attached (button CHANGE, reed CHANGE)");
 
   sensors.begin();
   int probeCount = sensors.getDeviceCount();

@@ -6,3 +6,4 @@
 #define READINGS_URL      API_BASE_URL "/readings"
 #define UNLOCK_URL        API_BASE_URL "/unlock"
 #define UNLOCK_PUBKEY_URL API_BASE_URL "/unlock/public-key"
+#define SEAL_URL          API_BASE_URL "/seal"

@@ -45,10 +45,17 @@ static void onButtonPressed() {
   LOGD("box", "button pressed while state=%s door=%s", boxStateName(boxState()),
        doorClosed() ? "closed" : "open");
   if (boxState() == BOX_UNLOCKED) {
-    if (doorClosed()) {
+    if (!doorClosed()) {
+      LOGW("box", "cannot seal: door is open");
+      return;
+    }
+    // Only seal once the backend confirms a delivery started; otherwise the box
+    // would sit LOCKED with no active trip and every unlock would be denied.
+    if (sealDelivery()) {
       lockBox();
     } else {
-      LOGW("box", "cannot seal: door is open");
+      LOGW("box", "seal rejected by backend; staying unlocked");
+      denyFeedback();
     }
   } else {
     requestUnlock();
@@ -98,7 +105,14 @@ void loop() {
   if (millis() - lastReadingAt >= READING_INTERVAL_MS) {
     lastReadingAt = millis();
     boxLogStatus();
-    sendReading();
+    // Only report temperatures while the box is sealed and in transit
+    // (LOCKED/BREACH). When UNLOCKED it is loading or already delivered, so a
+    // reading carries no cold-chain meaning.
+    if (boxState() != BOX_UNLOCKED) {
+      sendReading();
+    } else {
+      LOGD("rd", "box UNLOCKED (not in transit); skipping reading upload");
+    }
   }
 
   updateLeds();
