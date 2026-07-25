@@ -5,6 +5,7 @@ import {
   deleteDelivery,
   finishDelivery,
   startDelivery,
+  confirmEscrow,
   listAvailableDevices,
   listDeliveries,
   registerDelivery,
@@ -13,6 +14,7 @@ import {
   type RegisterDeliveryInput,
 } from "../api/deliveries";
 import { listCarriers, type CarrierDto } from "../api/carriers";
+import { getConfig } from "../api/config";
 
 const emptyForm: RegisterDeliveryInput = {
   from: "",
@@ -30,10 +32,12 @@ export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState<DeliveryDto[]>([]);
   const [devices, setDevices] = useState<AvailableDeviceDto[]>([]);
   const [carriers, setCarriers] = useState<CarrierDto[]>([]);
+  const [settlementEnabled, setSettlementEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [form, setForm] = useState<RegisterDeliveryInput>(emptyForm);
+  const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -43,20 +47,23 @@ export default function DeliveriesPage() {
 
   const [finishingId, setFinishingId] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [d, dev, car] = await Promise.all([
+      const [d, dev, car, cfg] = await Promise.all([
         listDeliveries(token),
         listAvailableDevices(token),
         listCarriers(token),
+        getConfig(),
       ]);
       setDeliveries(d);
       setDevices(dev);
       setCarriers(car);
+      setSettlementEnabled(cfg.settlementEnabled);
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : "Failed to load deliveries"
@@ -76,8 +83,10 @@ export default function DeliveriesPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      await registerDelivery(token, form);
+      const amountHbar = amount.trim() ? Number(amount) : 0;
+      await registerDelivery(token, { ...form, amountHbar });
       setForm(emptyForm);
+      setAmount("");
       await refresh();
     } catch (err) {
       setFormError(
@@ -115,6 +124,25 @@ export default function DeliveriesPage() {
       );
     } finally {
       setStartingId(null);
+    }
+  };
+
+  const onConfirmEscrow = async (delivery: DeliveryDto) => {
+    setConfirmingId(delivery.id);
+    setRowError(null);
+    try {
+      await confirmEscrow(token, delivery.id);
+      await refresh();
+    } catch (err) {
+      setRowError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to confirm escrow"
+      );
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -219,6 +247,18 @@ export default function DeliveriesPage() {
             disabled={carriers.length === 0}
             options={carriers.map((c) => ({ value: c.id, label: c.name }))}
           />
+          <TextField
+            label="Escrow amount (ℏ, optional)"
+            placeholder="e.g. 50 — leave blank for no escrow"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            disabled={!settlementEnabled}
+            hint={
+              settlementEnabled
+                ? "Held in escrow and released to the carrier only if the cold chain holds."
+                : "Escrow settlement is not configured on this server."
+            }
+          />
           <div className="sm:col-span-2 flex items-center gap-3">
             <button
               type="submit"
@@ -268,6 +308,7 @@ export default function DeliveriesPage() {
                   <th className="px-6 py-3">Device</th>
                   <th className="px-6 py-3">Carrier</th>
                   <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Escrow</th>
                   <th className="px-6 py-3">Created</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -305,20 +346,36 @@ export default function DeliveriesPage() {
                             : "Finished"}
                       </span>
                     </td>
+                    <td className="px-6 py-3">
+                      <EscrowCell delivery={d} />
+                    </td>
                     <td className="px-6 py-3 text-slate-500">
                       {new Date(d.createdAt).toLocaleString()}
                     </td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {d.status === "ready" && (
-                          <button
-                            onClick={() => void onStart(d)}
-                            disabled={startingId === d.id}
-                            className="rounded-md border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
-                          >
-                            {startingId === d.id ? "Starting..." : "Start"}
-                          </button>
-                        )}
+                        {d.status === "ready" &&
+                          d.settlementStatus === "awaiting_escrow" && (
+                            <button
+                              onClick={() => void onConfirmEscrow(d)}
+                              disabled={confirmingId === d.id}
+                              className="rounded-md border border-violet-200 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+                            >
+                              {confirmingId === d.id
+                                ? "Confirming..."
+                                : "Confirm escrow"}
+                            </button>
+                          )}
+                        {d.status === "ready" &&
+                          d.settlementStatus !== "awaiting_escrow" && (
+                            <button
+                              onClick={() => void onStart(d)}
+                              disabled={startingId === d.id}
+                              className="rounded-md border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                            >
+                              {startingId === d.id ? "Starting..." : "Start"}
+                            </button>
+                          )}
                         {d.status === "in_transit" && (
                           <button
                             onClick={() => void onFinish(d)}
@@ -392,16 +449,68 @@ export default function DeliveriesPage() {
   );
 }
 
+/** Shows the escrow amount and settlement outcome for a delivery. */
+function EscrowCell({ delivery }: { delivery: DeliveryDto }) {
+  if (delivery.settlementStatus === "disabled" || delivery.amountHbar <= 0) {
+    return <span className="text-xs text-slate-400">No escrow</span>;
+  }
+
+  const badges: Record<
+    Exclude<DeliveryDto["settlementStatus"], "disabled">,
+    { label: string; className: string }
+  > = {
+    awaiting_escrow: {
+      label: "Awaiting funds",
+      className: "bg-orange-100 text-orange-700",
+    },
+    escrowed: { label: "Escrowed", className: "bg-violet-100 text-violet-700" },
+    released: {
+      label: "Released to carrier",
+      className: "bg-emerald-100 text-emerald-700",
+    },
+    refunded: {
+      label: "Refunded to shipper",
+      className: "bg-rose-100 text-rose-700",
+    },
+    unsettled: { label: "Unsettled", className: "bg-slate-100 text-slate-600" },
+  };
+
+  const badge =
+    badges[delivery.settlementStatus as keyof typeof badges] ?? badges.unsettled;
+
+  return (
+    <div className="space-y-1">
+      <div className="font-mono text-xs text-slate-700">
+        {delivery.amountHbar} ℏ
+      </div>
+      <span
+        className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${badge.className}`}
+      >
+        {badge.label}
+      </span>
+      {delivery.settlement && (
+        <div className="text-xs text-slate-400">
+          {delivery.settlement.reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TextField({
   label,
   value,
   placeholder,
   onChange,
+  disabled,
+  hint,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -412,8 +521,12 @@ function TextField({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+        disabled={disabled}
+        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-400"
       />
+      {hint && (
+        <span className="mt-1 block text-xs text-slate-400">{hint}</span>
+      )}
     </label>
   );
 }

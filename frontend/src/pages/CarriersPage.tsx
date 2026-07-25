@@ -18,6 +18,7 @@ export default function CarriersPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [hederaAccountId, setHederaAccountId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -49,8 +50,12 @@ export default function CarriersPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      await registerCarrier(token, { name });
+      await registerCarrier(token, {
+        name,
+        hederaAccountId: hederaAccountId.trim() || undefined,
+      });
       setName("");
+      setHederaAccountId("");
       await refresh();
     } catch (err) {
       setFormError(
@@ -85,6 +90,20 @@ export default function CarriersPage() {
               placeholder="Frío Express S.A."
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
             />
+          </label>
+          <label className="block flex-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Hedera account (optional)
+            </span>
+            <input
+              value={hederaAccountId}
+              onChange={(e) => setHederaAccountId(e.target.value)}
+              placeholder="0.0.1234"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+            />
+            <span className="mt-1 block text-xs text-slate-400">
+              Receives the escrow payout when a delivery settles.
+            </span>
           </label>
           <div className="flex items-center gap-3">
             <button
@@ -128,6 +147,7 @@ export default function CarriersPage() {
               <thead className="border-t border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-6 py-3">Name</th>
+                  <th className="px-6 py-3">Hedera account</th>
                   <th className="px-6 py-3">ID</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -137,6 +157,13 @@ export default function CarriersPage() {
                   <tr key={t.id}>
                     <td className="px-6 py-3 font-medium text-slate-800">
                       {t.name}
+                    </td>
+                    <td className="px-6 py-3 font-mono text-xs text-slate-500">
+                      {t.hederaAccountId ?? (
+                        <span className="font-sans text-slate-400">
+                          Not set
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-3 font-mono text-xs text-slate-500">
                       {t.id}

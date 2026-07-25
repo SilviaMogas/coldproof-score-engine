@@ -6,6 +6,7 @@ import type { UseCases } from "../../composition/use-cases.js";
 import { AppError } from "../../shared/errors.js";
 import { authPlugin } from "./plugins/auth.js";
 import { healthRoutes } from "./routes/health.routes.js";
+import { configRoutes } from "./routes/config.routes.js";
 import { deviceRoutes } from "./routes/device.routes.js";
 import { carrierRoutes } from "./routes/carrier.routes.js";
 import { deliveryRoutes } from "./routes/delivery.routes.js";
@@ -17,6 +18,8 @@ export interface ServerDeps {
   corsOrigin: string[];
   verifier: TokenVerifier;
   useCases: UseCases;
+  /** Whether HBAR escrow settlement is configured on this server. */
+  settlementEnabled: boolean;
 }
 
 /**
@@ -82,6 +85,7 @@ export async function buildServer(deps: ServerDeps) {
   await app.register(cors, { origin: deps.corsOrigin });
   await app.register(authPlugin, { verifier: deps.verifier });
   await app.register(healthRoutes);
+  await app.register(configRoutes({ settlementEnabled: deps.settlementEnabled }));
   await app.register(deviceRoutes(deps.useCases));
   await app.register(carrierRoutes(deps.useCases));
   await app.register(deliveryRoutes(deps.useCases));

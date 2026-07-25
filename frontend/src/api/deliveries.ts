@@ -2,6 +2,27 @@ import { apiFetch } from "./client";
 
 export type DeliveryStatus = "ready" | "in_transit" | "finished";
 
+export type SettlementStatus =
+  | "disabled"
+  | "awaiting_escrow"
+  | "escrowed"
+  | "released"
+  | "refunded"
+  | "unsettled";
+
+export interface SettlementResult {
+  verdict: "released" | "refunded" | "unsettled";
+  reason: string;
+  totalReadings: number;
+  violations: number;
+  minTempC: number | null;
+  maxTempC: number | null;
+  paidTo: string | null;
+  amountHbar: number;
+  transactionId: string | null;
+  settledAt: string;
+}
+
 export interface DeliveryDto {
   id: string;
   from: string;
@@ -12,6 +33,9 @@ export interface DeliveryDto {
   carrierId: string;
   carrierName: string | null;
   status: DeliveryStatus;
+  amountHbar: number;
+  settlementStatus: SettlementStatus;
+  settlement: SettlementResult | null;
   createdAt: string;
 }
 
@@ -27,6 +51,7 @@ export interface RegisterDeliveryInput {
   boxContents: string;
   deviceId: string;
   carrierId: string;
+  amountHbar?: number;
 }
 
 export function listDeliveries(
@@ -83,6 +108,16 @@ export function startDelivery(
 ): Promise<DeliveryDto> {
   return apiFetch<DeliveryDto>(
     `/deliveries/${encodeURIComponent(id)}/start`,
+    { method: "POST", token }
+  );
+}
+
+export function confirmEscrow(
+  token: string | undefined,
+  id: string
+): Promise<DeliveryDto> {
+  return apiFetch<DeliveryDto>(
+    `/deliveries/${encodeURIComponent(id)}/confirm-escrow`,
     { method: "POST", token }
   );
 }

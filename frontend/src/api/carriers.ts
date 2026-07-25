@@ -3,10 +3,12 @@ import { apiFetch } from "./client";
 export interface CarrierDto {
   id: string;
   name: string;
+  hederaAccountId: string | null;
 }
 
 export interface RegisterCarrierInput {
   name: string;
+  hederaAccountId?: string;
 }
 
 export function listCarriers(

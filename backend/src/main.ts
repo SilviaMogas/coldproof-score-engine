@@ -60,6 +60,7 @@ async function main(): Promise<void> {
     corsOrigin: env.CORS_ORIGIN,
     verifier,
     useCases,
+    settlementEnabled: settlement.config.enabled,
   });
 
   try {

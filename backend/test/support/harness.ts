@@ -82,6 +82,7 @@ export async function buildTestServer(
     corsOrigin: ["*"],
     verifier: new StubTokenVerifier(),
     useCases,
+    settlementEnabled: settlement.config.enabled,
   });
 
   await app.ready();
