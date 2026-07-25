@@ -14,6 +14,9 @@ import { DeleteDelivery } from "../application/delivery/delete-delivery.js";
 import { StartDelivery } from "../application/delivery/start-delivery.js";
 import { FinishDelivery } from "../application/delivery/finish-delivery.js";
 import { ListAvailableDevices } from "../application/delivery/list-available-devices.js";
+import { ConfirmEscrow } from "../application/settlement/confirm-escrow.js";
+import { SettleDelivery } from "../application/settlement/settle-delivery.js";
+import type { SettlementServices } from "./settlement.js";
 import { IngestReading } from "../application/reading/ingest-reading.js";
 import { ListReadings } from "../application/reading/list-readings.js";
 import {
@@ -34,6 +37,7 @@ export interface UseCases {
   deleteDelivery: DeleteDelivery;
   startDelivery: StartDelivery;
   finishDelivery: FinishDelivery;
+  confirmEscrow: ConfirmEscrow;
   listAvailableDevices: ListAvailableDevices;
   ingestReading: IngestReading;
   listReadings: ListReadings;
@@ -49,9 +53,17 @@ export function createUseCases(
   signatureVerifier: SignatureVerifier,
   consensusLog: ConsensusLog,
   commandSigner: CommandSigner,
-  unlockPolicy: UnlockPolicy
+  unlockPolicy: UnlockPolicy,
+  settlement: SettlementServices
 ): UseCases {
   const { devices, carriers, deliveries, readings } = repos;
+  const settleDelivery = new SettleDelivery(
+    deliveries,
+    carriers,
+    settlement.reader,
+    settlement.escrow,
+    settlement.config
+  );
   return {
     registerDevice: new RegisterDevice(devices),
     listDevices: new ListDevices(devices, deliveries),
@@ -59,11 +71,21 @@ export function createUseCases(
     registerCarrier: new RegisterCarrier(carriers),
     listCarriers: new ListCarriers(carriers),
     deleteCarrier: new DeleteCarrier(carriers),
-    registerDelivery: new RegisterDelivery(deliveries, devices, carriers),
+    registerDelivery: new RegisterDelivery(
+      deliveries,
+      devices,
+      carriers,
+      settlement.config.enabled
+    ),
     listDeliveries: new ListDeliveries(deliveries, devices, carriers),
     deleteDelivery: new DeleteDelivery(deliveries, devices),
     startDelivery: new StartDelivery(deliveries),
-    finishDelivery: new FinishDelivery(deliveries, devices),
+    finishDelivery: new FinishDelivery(deliveries, devices, settleDelivery),
+    confirmEscrow: new ConfirmEscrow(
+      deliveries,
+      settlement.escrow,
+      settlement.config
+    ),
     listAvailableDevices: new ListAvailableDevices(devices),
     ingestReading: new IngestReading(
       readings,

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Device } from "../../../domain/device/device.js";
+import type { Delivery } from "../../../domain/delivery/delivery.js";
 import type { RegisterDelivery } from "../../../application/delivery/register-delivery.js";
 import type {
   ListDeliveries,
@@ -9,6 +10,7 @@ import type {
 import type { DeleteDelivery } from "../../../application/delivery/delete-delivery.js";
 import type { StartDelivery } from "../../../application/delivery/start-delivery.js";
 import type { FinishDelivery } from "../../../application/delivery/finish-delivery.js";
+import type { ConfirmEscrow } from "../../../application/settlement/confirm-escrow.js";
 import type { ListAvailableDevices } from "../../../application/delivery/list-available-devices.js";
 import { ValidationError } from "../../../shared/errors.js";
 
@@ -18,6 +20,7 @@ const registerBody = z.object({
   boxContents: z.string().min(1),
   deviceId: z.string().min(1),
   carrierId: z.string().min(1),
+  amountHbar: z.coerce.number().nonnegative().optional().default(0),
 });
 
 const idParams = z.object({
@@ -30,6 +33,7 @@ export interface DeliveryRoutesDeps {
   deleteDelivery: DeleteDelivery;
   startDelivery: StartDelivery;
   finishDelivery: FinishDelivery;
+  confirmEscrow: ConfirmEscrow;
   listAvailableDevices: ListAvailableDevices;
 }
 
@@ -71,16 +75,7 @@ export function deliveryRoutes(deps: DeliveryRoutesDeps) {
 
         const delivery = await deps.registerDelivery.execute(parsed.data);
         reply.code(201);
-        return {
-          id: delivery.id,
-          from: delivery.from,
-          to: delivery.to,
-          boxContents: delivery.boxContents,
-          deviceId: delivery.deviceId,
-          carrierId: delivery.carrierId,
-          status: delivery.status,
-          createdAt: delivery.createdAt.toISOString(),
-        };
+        return deliveryDto(delivery);
       }
     );
 
@@ -99,16 +94,26 @@ export function deliveryRoutes(deps: DeliveryRoutesDeps) {
 
         const delivery = await deps.startDelivery.execute(parsed.data.id);
         reply.code(200);
-        return {
-          id: delivery.id,
-          from: delivery.from,
-          to: delivery.to,
-          boxContents: delivery.boxContents,
-          deviceId: delivery.deviceId,
-          carrierId: delivery.carrierId,
-          status: delivery.status,
-          createdAt: delivery.createdAt.toISOString(),
-        };
+        return deliveryDto(delivery);
+      }
+    );
+
+    app.post(
+      "/deliveries/:id/confirm-escrow",
+      { preHandler: app.authenticate },
+      async (req, reply) => {
+        const parsed = idParams.safeParse(req.params);
+        if (!parsed.success) {
+          throw new ValidationError(
+            parsed.error.issues
+              .map((i) => `${i.path.join(".")}: ${i.message}`)
+              .join(", ")
+          );
+        }
+
+        const delivery = await deps.confirmEscrow.execute(parsed.data.id);
+        reply.code(200);
+        return deliveryDto(delivery);
       }
     );
 
@@ -127,16 +132,7 @@ export function deliveryRoutes(deps: DeliveryRoutesDeps) {
 
         const delivery = await deps.finishDelivery.execute(parsed.data.id);
         reply.code(200);
-        return {
-          id: delivery.id,
-          from: delivery.from,
-          to: delivery.to,
-          boxContents: delivery.boxContents,
-          deviceId: delivery.deviceId,
-          carrierId: delivery.carrierId,
-          status: delivery.status,
-          createdAt: delivery.createdAt.toISOString(),
-        };
+        return deliveryDto(delivery);
       }
     );
 
@@ -171,6 +167,26 @@ function toDto(d: DeliveryView) {
     carrierId: d.carrierId,
     carrierName: d.carrierName,
     status: d.status,
+    amountHbar: d.amountHbar,
+    settlementStatus: d.settlementStatus,
+    settlement: d.settlement,
+    createdAt: d.createdAt.toISOString(),
+  };
+}
+
+/** Serializes a domain delivery for create/start/finish/confirm responses. */
+function deliveryDto(d: Delivery) {
+  return {
+    id: d.id,
+    from: d.from,
+    to: d.to,
+    boxContents: d.boxContents,
+    deviceId: d.deviceId,
+    carrierId: d.carrierId,
+    status: d.status,
+    amountHbar: d.amountHbar,
+    settlementStatus: d.settlementStatus,
+    settlement: d.settlement,
     createdAt: d.createdAt.toISOString(),
   };
 }

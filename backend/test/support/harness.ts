@@ -9,6 +9,9 @@ import type { Repositories } from "../../src/composition/repositories.js";
 import { Ed25519SignatureVerifier } from "../../src/infrastructure/crypto/ed25519-signature-verifier.js";
 import { Ed25519CommandSigner } from "../../src/infrastructure/crypto/ed25519-command-signer.js";
 import { NoopConsensusLog } from "../../src/infrastructure/hedera/noop-consensus-log.js";
+import { NoopConsensusReader } from "../../src/infrastructure/hedera/noop-consensus-reader.js";
+import { NoopEscrowGateway } from "../../src/infrastructure/hedera/noop-escrow-gateway.js";
+import type { SettlementServices } from "../../src/composition/settlement.js";
 import { InMemoryDeviceRepository } from "../../src/infrastructure/persistence/in-memory-device-repository.js";
 import { InMemoryCarrierRepository } from "../../src/infrastructure/persistence/in-memory-carrier-repository.js";
 import { InMemoryDeliveryRepository } from "../../src/infrastructure/persistence/in-memory-delivery-repository.js";
@@ -36,12 +39,22 @@ class StubTokenVerifier implements TokenVerifier {
   }
 }
 
+/** Optional overrides for tests that exercise the settlement flow. */
+export interface TestServerOverrides {
+  settlement?: SettlementServices;
+}
+
 /**
  * Builds an in-process server wired with in-memory repositories, the real
  * Ed25519 signature verifier, a no-op consensus log and a stub token verifier.
  * Drive it with `app.inject(...)` — no network port is opened.
+ *
+ * Settlement defaults to disabled (no-op reader/escrow); pass `overrides` to
+ * inject fakes for settlement tests.
  */
-export async function buildTestServer(): Promise<FastifyInstance> {
+export async function buildTestServer(
+  overrides: TestServerOverrides = {}
+): Promise<FastifyInstance> {
   const repos: Repositories = {
     devices: new InMemoryDeviceRepository(),
     carriers: new InMemoryCarrierRepository(),
@@ -49,12 +62,19 @@ export async function buildTestServer(): Promise<FastifyInstance> {
     readings: new InMemoryReadingRepository(),
   };
 
+  const settlement: SettlementServices = overrides.settlement ?? {
+    reader: new NoopConsensusReader(),
+    escrow: new NoopEscrowGateway(),
+    config: { enabled: false, minTempC: 2, maxTempC: 8 },
+  };
+
   const useCases = createUseCases(
     repos,
     new Ed25519SignatureVerifier(),
     new NoopConsensusLog(),
     new Ed25519CommandSigner(),
-    { minTempC: 2, maxTempC: 8, ttlSeconds: 60 }
+    { minTempC: 2, maxTempC: 8, ttlSeconds: 60 },
+    settlement
   );
 
   const app = await buildServer({

@@ -8,6 +8,10 @@ import { ValidationError } from "../../../shared/errors.js";
 
 const registerBody = z.object({
   name: z.string().min(1),
+  hederaAccountId: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/, "must be a Hedera account id like 0.0.1234")
+    .optional(),
 });
 
 const idParams = z.object({
@@ -79,5 +83,6 @@ function toDto(t: Carrier) {
   return {
     id: t.id,
     name: t.name,
+    hederaAccountId: t.hederaAccountId,
   };
 }

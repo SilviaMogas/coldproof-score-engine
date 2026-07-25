@@ -43,6 +43,11 @@ const schema = z.object({
   HEDERA_OPERATOR_KEY: z.string().optional(),
   HEDERA_TOPIC_ID: z.string().optional(),
 
+  // Escrow settlement. When set together with the Hedera operator credentials
+  // and topic, deliveries can hold HBAR in escrow (the operator account) and
+  // settle from the HCS log: released to the carrier, or refunded here.
+  SHIPPER_ACCOUNT_ID: z.string().optional(),
+
   // Secure-box unlock authorization. The backend signs unlock commands with
   // this Ed25519 seed (32-byte hex); devices verify with the matching key. If
   // omitted, an ephemeral key is generated (dev only). Unlock is refused when a

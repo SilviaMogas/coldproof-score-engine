@@ -1,7 +1,12 @@
 import { dirname } from "node:path";
 import { mkdirSync } from "node:fs";
 import Database from "better-sqlite3";
-import type { Delivery, DeliveryStatus } from "../../domain/delivery/delivery.js";
+import type {
+  Delivery,
+  DeliveryStatus,
+  SettlementResult,
+  SettlementStatus,
+} from "../../domain/delivery/delivery.js";
 import type { DeliveryRepository } from "../../domain/delivery/delivery-repository.js";
 
 interface DeliveryRow {
@@ -12,6 +17,9 @@ interface DeliveryRow {
   device_id: string;
   carrier_id: string;
   status: string;
+  amount_hbar: number;
+  settlement_status: string;
+  settlement: string | null;
   created_at: string;
 }
 
@@ -24,6 +32,11 @@ function toDelivery(row: DeliveryRow): Delivery {
     deviceId: row.device_id,
     carrierId: row.carrier_id,
     status: row.status as DeliveryStatus,
+    amountHbar: row.amount_hbar,
+    settlementStatus: row.settlement_status as SettlementStatus,
+    settlement: row.settlement
+      ? (JSON.parse(row.settlement) as SettlementResult)
+      : null,
     createdAt: new Date(row.created_at),
   };
 }
@@ -43,26 +56,37 @@ export class SqliteDeliveryRepository implements DeliveryRepository {
     this.db.pragma("journal_mode = WAL");
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS deliveries (
-        id            TEXT PRIMARY KEY,
-        from_location TEXT NOT NULL,
-        to_location   TEXT NOT NULL,
-        box_contents  TEXT NOT NULL,
-        device_id     TEXT NOT NULL,
-        carrier_id    TEXT NOT NULL,
-        status        TEXT NOT NULL DEFAULT 'ready',
-        created_at    TEXT NOT NULL
+        id                TEXT PRIMARY KEY,
+        from_location     TEXT NOT NULL,
+        to_location       TEXT NOT NULL,
+        box_contents      TEXT NOT NULL,
+        device_id         TEXT NOT NULL,
+        carrier_id        TEXT NOT NULL,
+        status            TEXT NOT NULL DEFAULT 'ready',
+        amount_hbar       REAL NOT NULL DEFAULT 0,
+        settlement_status TEXT NOT NULL DEFAULT 'disabled',
+        settlement        TEXT,
+        created_at        TEXT NOT NULL
       );
     `);
-    // Backfill the status column for databases created before it existed.
-    const hasStatus = (
+    this.addColumnIfMissing("status", "TEXT NOT NULL DEFAULT 'ready'");
+    this.addColumnIfMissing("amount_hbar", "REAL NOT NULL DEFAULT 0");
+    this.addColumnIfMissing(
+      "settlement_status",
+      "TEXT NOT NULL DEFAULT 'disabled'"
+    );
+    this.addColumnIfMissing("settlement", "TEXT");
+  }
+
+  /** Backfills a column for databases created before it existed. */
+  private addColumnIfMissing(name: string, definition: string): void {
+    const exists = (
       this.db.prepare("PRAGMA table_info(deliveries)").all() as {
         name: string;
       }[]
-    ).some((c) => c.name === "status");
-    if (!hasStatus) {
-      this.db.exec(
-        "ALTER TABLE deliveries ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'"
-      );
+    ).some((c) => c.name === name);
+    if (!exists) {
+      this.db.exec(`ALTER TABLE deliveries ADD COLUMN ${name} ${definition}`);
     }
   }
 
@@ -70,16 +94,21 @@ export class SqliteDeliveryRepository implements DeliveryRepository {
     this.db
       .prepare(
         `INSERT INTO deliveries
-           (id, from_location, to_location, box_contents, device_id, carrier_id, status, created_at)
+           (id, from_location, to_location, box_contents, device_id, carrier_id,
+            status, amount_hbar, settlement_status, settlement, created_at)
          VALUES
-           (@id, @from, @to, @boxContents, @deviceId, @carrierId, @status, @createdAt)
+           (@id, @from, @to, @boxContents, @deviceId, @carrierId,
+            @status, @amountHbar, @settlementStatus, @settlement, @createdAt)
          ON CONFLICT(id) DO UPDATE SET
-           from_location = excluded.from_location,
-           to_location   = excluded.to_location,
-           box_contents  = excluded.box_contents,
-           device_id     = excluded.device_id,
-           carrier_id    = excluded.carrier_id,
-           status        = excluded.status`
+           from_location     = excluded.from_location,
+           to_location       = excluded.to_location,
+           box_contents      = excluded.box_contents,
+           device_id         = excluded.device_id,
+           carrier_id        = excluded.carrier_id,
+           status            = excluded.status,
+           amount_hbar       = excluded.amount_hbar,
+           settlement_status = excluded.settlement_status,
+           settlement        = excluded.settlement`
       )
       .run({
         id: delivery.id,
@@ -89,6 +118,11 @@ export class SqliteDeliveryRepository implements DeliveryRepository {
         deviceId: delivery.deviceId,
         carrierId: delivery.carrierId,
         status: delivery.status,
+        amountHbar: delivery.amountHbar,
+        settlementStatus: delivery.settlementStatus,
+        settlement: delivery.settlement
+          ? JSON.stringify(delivery.settlement)
+          : null,
         createdAt: delivery.createdAt.toISOString(),
       });
   }

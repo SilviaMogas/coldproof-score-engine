@@ -3,6 +3,7 @@ import { createLogger } from "./shared/logger.js";
 import { createRepositories } from "./composition/repositories.js";
 import { createConsensusLog } from "./composition/consensus-log.js";
 import { createCommandSigner } from "./composition/command-signer.js";
+import { createSettlement } from "./composition/settlement.js";
 import { createUseCases } from "./composition/use-cases.js";
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
 import { Ed25519SignatureVerifier } from "./infrastructure/crypto/ed25519-signature-verifier.js";
@@ -25,6 +26,17 @@ async function main(): Promise<void> {
     { unlockPublicKey: commandSigner.publicKeyHex },
     "unlock command signer ready"
   );
+
+  const settlement = createSettlement(env, logger);
+  logger.info(
+    {
+      enabled: settlement.config.enabled,
+      escrowAccount: settlement.config.enabled ? env.HEDERA_OPERATOR_ID : null,
+      shipperAccount: settlement.config.shipperAccountId ?? null,
+    },
+    "escrow settlement ready"
+  );
+
   const useCases = createUseCases(
     repositories,
     new Ed25519SignatureVerifier(),
@@ -34,7 +46,8 @@ async function main(): Promise<void> {
       minTempC: env.TEMP_MIN_C,
       maxTempC: env.TEMP_MAX_C,
       ttlSeconds: env.UNLOCK_TTL_SECONDS,
-    }
+    },
+    settlement
   );
   const verifier = new CognitoTokenVerifier({
     userPoolId: env.COGNITO_USER_POOL_ID,

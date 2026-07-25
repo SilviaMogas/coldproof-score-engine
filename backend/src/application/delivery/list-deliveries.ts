@@ -1,5 +1,9 @@
 import type { DeliveryRepository } from "../../domain/delivery/delivery-repository.js";
-import type { DeliveryStatus } from "../../domain/delivery/delivery.js";
+import type {
+  DeliveryStatus,
+  SettlementResult,
+  SettlementStatus,
+} from "../../domain/delivery/delivery.js";
 import type { DeviceRepository } from "../../domain/device/device-repository.js";
 import type { CarrierRepository } from "../../domain/carrier/carrier-repository.js";
 
@@ -14,6 +18,9 @@ export interface DeliveryView {
   carrierId: string;
   carrierName: string | null;
   status: DeliveryStatus;
+  amountHbar: number;
+  settlementStatus: SettlementStatus;
+  settlement: SettlementResult | null;
   createdAt: Date;
 }
 
@@ -45,6 +52,9 @@ export class ListDeliveries {
       carrierId: d.carrierId,
       carrierName: carrierById.get(d.carrierId)?.name ?? null,
       status: d.status,
+      amountHbar: d.amountHbar,
+      settlementStatus: d.settlementStatus,
+      settlement: d.settlement,
       createdAt: d.createdAt,
     }));
   }

@@ -12,23 +12,36 @@ export interface RegisterDeliveryInput {
   boxContents: string;
   deviceId: string;
   carrierId: string;
+  /** HBAR to hold in escrow for this delivery. Defaults to 0 (no settlement). */
+  amountHbar?: number;
 }
 
 /**
  * Creates a delivery. Ensures the chosen device exists and is active (not
  * already assigned to another in-transit delivery) and that the carrier
  * exists, then locks the device by marking it `assigned`.
+ *
+ * When an escrow amount is requested, settlement must be configured on the
+ * server; otherwise the delivery could never fund its escrow or settle.
  */
 export class RegisterDelivery {
   constructor(
     private readonly deliveries: DeliveryRepository,
     private readonly devices: DeviceRepository,
-    private readonly carriers: CarrierRepository
+    private readonly carriers: CarrierRepository,
+    private readonly settlementEnabled: boolean
   ) {}
 
   async execute(input: RegisterDeliveryInput): Promise<Delivery> {
     const deviceId = input.deviceId?.trim();
     const carrierId = input.carrierId?.trim();
+    const amountHbar = input.amountHbar ?? 0;
+
+    if (amountHbar > 0 && !this.settlementEnabled) {
+      throw new ValidationError(
+        "settlement is not configured on this server; create the delivery without an escrow amount"
+      );
+    }
 
     const device = deviceId
       ? await this.devices.findByDeviceId(deviceId)
@@ -49,7 +62,7 @@ export class RegisterDelivery {
       throw new ValidationError(`carrier '${carrierId}' does not exist`);
     }
 
-    const delivery = createDelivery(input);
+    const delivery = createDelivery({ ...input, amountHbar });
     await this.deliveries.save(delivery);
     await this.devices.save(assignDevice(device));
     return delivery;
