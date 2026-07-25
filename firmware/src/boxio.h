@@ -35,5 +35,8 @@ void boxLogStatus();
 // Returns true once per debounced button press.
 bool buttonPressedEdge();
 
+// Processes pending interrupt events (door change); call every loop.
+void boxProcessEvents();
+
 // Reads the probe in Celsius. Returns NAN if the probe is disconnected.
 float readTemperatureC();

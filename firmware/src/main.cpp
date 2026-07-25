@@ -89,6 +89,8 @@ void setup() {
 void loop() {
   netEnsureConnected();
 
+  boxProcessEvents();
+
   if (buttonPressedEdge()) {
     onButtonPressed();
   }

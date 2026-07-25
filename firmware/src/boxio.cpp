@@ -3,6 +3,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ESP32Servo.h>
+#include <Ticker.h>
 #include <math.h>
 
 #include "log.h"
@@ -18,10 +19,19 @@ static Servo latchServo;
 // Current box state.
 static BoxState state = BOX_UNLOCKED;
 
-// Button debounce.
-static int buttonStable = LOW;
-static int buttonLastRaw = LOW;
-static unsigned long buttonDebounceAt = 0;
+// Button is normally-open to GND with INPUT_PULLUP, so it reads HIGH at rest
+// and LOW while pressed. A falling-edge interrupt flags a debounced press so a
+// long blocking HTTP call in loop() can never miss it.
+static volatile bool buttonPressPending = false;
+static volatile unsigned long lastButtonIsrMs = 0;
+
+// Reed change interrupt: flags that the door state moved so loop() logs the
+// transition even while an HTTP request is in flight.
+static volatile bool doorEventPending = false;
+static volatile unsigned long lastReedIsrMs = 0;
+
+// Timer that blinks the red LED during BREACH, independent of loop() timing.
+static Ticker breachTicker;
 
 // Last observed door state, so we only log transitions.
 static bool lastDoorClosed = false;
@@ -43,6 +53,30 @@ const char *boxStateName(BoxState s) {
   return "?";
 }
 
+// --- Interrupt service routines (kept minimal; no logging/allocation here) ---
+
+static void IRAM_ATTR buttonIsr() {
+  unsigned long now = millis();
+  // Ignore edges within the debounce window (contact bounce).
+  if (now - lastButtonIsrMs < 40) return;
+  lastButtonIsrMs = now;
+  buttonPressPending = true;
+}
+
+static void IRAM_ATTR reedIsr() {
+  unsigned long now = millis();
+  if (now - lastReedIsrMs < 20) return;
+  lastReedIsrMs = now;
+  doorEventPending = true;
+}
+
+// Blink callback fired by the Ticker (runs in the esp_timer task, not an ISR).
+static void breachBlinkTick() {
+  static bool on = false;
+  on = !on;
+  digitalWrite(LED_RED_GPIO, on ? HIGH : LOW);
+}
+
 void boxBegin() {
   pinMode(REED_GPIO, INPUT_PULLUP);
   pinMode(BUTTON_GPIO, INPUT_PULLUP);
@@ -51,6 +85,11 @@ void boxBegin() {
   LOGD("box", "gpio: reed=%d button=%d ledG=%d ledR=%d servo=%d probe=%d",
        REED_GPIO, BUTTON_GPIO, LED_GREEN_GPIO, LED_RED_GPIO, SERVO_GPIO,
        DS18B20_GPIO);
+
+  // Button press is the HIGH->LOW edge; reed changes on either edge.
+  attachInterrupt(digitalPinToInterrupt(BUTTON_GPIO), buttonIsr, FALLING);
+  attachInterrupt(digitalPinToInterrupt(REED_GPIO), reedIsr, CHANGE);
+  LOGD("box", "interrupts attached (button FALLING, reed CHANGE)");
 
   sensors.begin();
   int probeCount = sensors.getDeviceCount();
@@ -111,38 +150,32 @@ bool doorClosed() {
 }
 
 void updateLeds() {
+  // Act only on state changes; the breach blink is driven by the Ticker so it
+  // keeps blinking even while loop() is blocked on a network call.
+  if (ledInit && state == lastLedState) return;
+  lastLedState = state;
+  ledInit = true;
+  breachTicker.detach();
   switch (state) {
     case BOX_UNLOCKED:
       digitalWrite(LED_GREEN_GPIO, HIGH);
       digitalWrite(LED_RED_GPIO, LOW);
+      LOGD("box", "leds: green(gpio%d)=ON red(gpio%d)=OFF", LED_GREEN_GPIO,
+           LED_RED_GPIO);
       break;
     case BOX_LOCKED:
       digitalWrite(LED_GREEN_GPIO, LOW);
       digitalWrite(LED_RED_GPIO, HIGH);
+      LOGD("box", "leds: green(gpio%d)=OFF red(gpio%d)=ON", LED_GREEN_GPIO,
+           LED_RED_GPIO);
       break;
     case BOX_BREACH:
       digitalWrite(LED_GREEN_GPIO, LOW);
-      digitalWrite(LED_RED_GPIO, (millis() / 300) % 2 ? HIGH : LOW);
+      digitalWrite(LED_RED_GPIO, HIGH);
+      breachTicker.attach_ms(300, breachBlinkTick);
+      LOGD("box", "leds: green(gpio%d)=OFF red(gpio%d)=BLINK", LED_GREEN_GPIO,
+           LED_RED_GPIO);
       break;
-  }
-  // Log the LED pattern once per state change (avoid spamming the breach blink).
-  if (!ledInit || state != lastLedState) {
-    switch (state) {
-      case BOX_UNLOCKED:
-        LOGD("box", "leds: green(gpio%d)=ON red(gpio%d)=OFF", LED_GREEN_GPIO,
-             LED_RED_GPIO);
-        break;
-      case BOX_LOCKED:
-        LOGD("box", "leds: green(gpio%d)=OFF red(gpio%d)=ON", LED_GREEN_GPIO,
-             LED_RED_GPIO);
-        break;
-      case BOX_BREACH:
-        LOGD("box", "leds: green(gpio%d)=OFF red(gpio%d)=BLINK", LED_GREEN_GPIO,
-             LED_RED_GPIO);
-        break;
-    }
-    lastLedState = state;
-    ledInit = true;
   }
 }
 
@@ -166,26 +199,26 @@ void boxLogStatus() {
        "leds[%s]",
        boxStateName(state), REED_GPIO, reed == LOW ? "LOW" : "HIGH",
        reed == LOW ? "closed" : "open", BUTTON_GPIO,
-       btn == LOW ? "LOW(rest)" : "HIGH(pressed)", ledPattern);
+       btn == LOW ? "LOW(pressed)" : "HIGH(rest)", ledPattern);
 }
 
-// Debounced edge detection for the normally-closed button. With INPUT_PULLUP
-// the contact is closed at rest (reads LOW); pressing opens it (reads HIGH).
+// Debounced edge detection for the normally-open button. The falling-edge ISR
+// sets buttonPressPending; here we just consume it (safe to log in loop ctx).
 bool buttonPressedEdge() {
-  int raw = digitalRead(BUTTON_GPIO);
-  if (raw != buttonLastRaw) {
-    buttonLastRaw = raw;
-    buttonDebounceAt = millis();
-  }
-  if (millis() - buttonDebounceAt > 30 && raw != buttonStable) {
-    buttonStable = raw;
-    if (buttonStable == HIGH) {
-      LOGD("box", "button: gpio%d=HIGH -> press (edge)", BUTTON_GPIO);
-      return true;
-    }
-    LOGD("box", "button: gpio%d=LOW -> release", BUTTON_GPIO);
+  if (buttonPressPending) {
+    buttonPressPending = false;
+    LOGD("box", "button: gpio%d=LOW -> press (edge, irq)", BUTTON_GPIO);
+    return true;
   }
   return false;
+}
+
+// Handles the reed change interrupt: logs the door transition. Call from loop.
+void boxProcessEvents() {
+  if (doorEventPending) {
+    doorEventPending = false;
+    doorClosed();  // reads the pin and logs the closed/open transition
+  }
 }
 
 float readTemperatureC() {
