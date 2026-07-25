@@ -4,6 +4,7 @@ import type { DeliveryRepository } from "../../domain/delivery/delivery-reposito
 import type { ReadingRepository } from "../../domain/reading/reading-repository.js";
 import type { SignatureVerifier } from "../ports/signature-verifier.js";
 import type { CommandSigner } from "../ports/command-signer.js";
+import type { FinishDelivery } from "../delivery/finish-delivery.js";
 import {
   ForbiddenError,
   UnauthorizedError,
@@ -65,7 +66,8 @@ export class AuthorizeUnlock {
     private readonly readings: ReadingRepository,
     private readonly verifier: SignatureVerifier,
     private readonly signer: CommandSigner,
-    private readonly policy: UnlockPolicy
+    private readonly policy: UnlockPolicy,
+    private readonly finisher: FinishDelivery
   ) {}
 
   /** The backend public key devices use to verify unlock commands. */
@@ -148,6 +150,10 @@ export class AuthorizeUnlock {
       action: "unlock",
       exp,
     });
+
+    // 7. The box is being opened at its destination, so the trip is done:
+    //    finalize the delivery (frees the device and settles the escrow).
+    await this.finisher.execute(delivery.id);
 
     return {
       authorized: true,

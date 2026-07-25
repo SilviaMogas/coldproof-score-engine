@@ -13,6 +13,7 @@ import { ListDeliveries } from "../application/delivery/list-deliveries.js";
 import { DeleteDelivery } from "../application/delivery/delete-delivery.js";
 import { StartDelivery } from "../application/delivery/start-delivery.js";
 import { FinishDelivery } from "../application/delivery/finish-delivery.js";
+import { SealDelivery } from "../application/delivery/seal-delivery.js";
 import { ListAvailableDevices } from "../application/delivery/list-available-devices.js";
 import { ConfirmEscrow } from "../application/settlement/confirm-escrow.js";
 import { SettleDelivery } from "../application/settlement/settle-delivery.js";
@@ -37,6 +38,7 @@ export interface UseCases {
   deleteDelivery: DeleteDelivery;
   startDelivery: StartDelivery;
   finishDelivery: FinishDelivery;
+  sealDelivery: SealDelivery;
   confirmEscrow: ConfirmEscrow;
   listAvailableDevices: ListAvailableDevices;
   ingestReading: IngestReading;
@@ -64,6 +66,7 @@ export function createUseCases(
     settlement.escrow,
     settlement.config
   );
+  const finishDelivery = new FinishDelivery(deliveries, devices, settleDelivery);
   return {
     registerDevice: new RegisterDevice(devices),
     listDevices: new ListDevices(devices, deliveries),
@@ -80,7 +83,8 @@ export function createUseCases(
     listDeliveries: new ListDeliveries(deliveries, devices, carriers),
     deleteDelivery: new DeleteDelivery(deliveries, devices),
     startDelivery: new StartDelivery(deliveries),
-    finishDelivery: new FinishDelivery(deliveries, devices, settleDelivery),
+    finishDelivery,
+    sealDelivery: new SealDelivery(devices, deliveries, signatureVerifier),
     confirmEscrow: new ConfirmEscrow(
       deliveries,
       settlement.escrow,
@@ -90,8 +94,11 @@ export function createUseCases(
     ingestReading: new IngestReading(
       readings,
       devices,
+      deliveries,
       signatureVerifier,
-      consensusLog
+      consensusLog,
+      finishDelivery,
+      { minTempC: unlockPolicy.minTempC, maxTempC: unlockPolicy.maxTempC }
     ),
     listReadings: new ListReadings(readings),
     authorizeUnlock: new AuthorizeUnlock(
@@ -100,7 +107,8 @@ export function createUseCases(
       readings,
       signatureVerifier,
       commandSigner,
-      unlockPolicy
+      unlockPolicy,
+      finishDelivery
     ),
   };
 }

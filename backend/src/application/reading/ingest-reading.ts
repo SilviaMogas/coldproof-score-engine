@@ -3,6 +3,8 @@ import type { Reading } from "../../domain/reading/reading.js";
 import { createReading } from "../../domain/reading/reading.js";
 import type { ReadingRepository } from "../../domain/reading/reading-repository.js";
 import type { DeviceRepository } from "../../domain/device/device-repository.js";
+import type { DeliveryRepository } from "../../domain/delivery/delivery-repository.js";
+import type { FinishDelivery } from "../delivery/finish-delivery.js";
 import type { SignatureVerifier } from "../ports/signature-verifier.js";
 import type {
   ConsensusLog,
@@ -27,6 +29,12 @@ export interface IngestReadingResult {
   consensus: ConsensusReceipt | null;
 }
 
+/** Cold-chain range used to detect a breach on ingest. */
+export interface BreachRange {
+  minTempC: number;
+  maxTempC: number;
+}
+
 /** Schema of the canonical reading JSON the device signs (see firmware). */
 const messageSchema = z.object({
   deviceId: z.string().min(1),
@@ -45,8 +53,11 @@ export class IngestReading {
   constructor(
     private readonly readings: ReadingRepository,
     private readonly devices: DeviceRepository,
+    private readonly deliveries: DeliveryRepository,
     private readonly verifier: SignatureVerifier,
-    private readonly consensusLog: ConsensusLog
+    private readonly consensusLog: ConsensusLog,
+    private readonly finisher: FinishDelivery,
+    private readonly range: BreachRange
   ) {}
 
   async execute(input: IngestReadingInput): Promise<IngestReadingResult> {
@@ -105,9 +116,38 @@ export class IngestReading {
     });
     await this.readings.save(reading);
 
-    // 4. Mirror the authenticated reading to the immutable consensus log.
+    // 4. A reading outside the cold-chain range ends the trip: finalize the
+    //    device's in-transit delivery (which settles the escrow as a refund).
+    await this.finalizeOnBreach(device.deviceId, reading.temperatureC);
+
+    // 5. Mirror the authenticated reading to the immutable consensus log.
     //    Best-effort: a null receipt means it was not committed to HCS.
     const consensus = await this.consensusLog.publish(reading);
     return { reading, consensus };
+  }
+
+  /**
+   * Finalizes the device's in-transit delivery when a reading breaches the
+   * cold-chain range. Best-effort: a no-op when the reading is in range or the
+   * device has no in-transit delivery.
+   */
+  private async finalizeOnBreach(
+    deviceId: string,
+    temperatureC: number
+  ): Promise<void> {
+    const inRange =
+      temperatureC >= this.range.minTempC &&
+      temperatureC <= this.range.maxTempC;
+    if (inRange) {
+      return;
+    }
+    const all = await this.deliveries.list();
+    const active = all.find(
+      (d) => d.deviceId === deviceId && d.status === "in_transit"
+    );
+    if (!active) {
+      return;
+    }
+    await this.finisher.execute(active.id);
   }
 }

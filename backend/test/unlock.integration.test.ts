@@ -18,6 +18,7 @@ const auth = { authorization: `Bearer ${TEST_TOKEN}` };
 const verifier = new Ed25519SignatureVerifier();
 
 let deliveryId: string;
+let carrierId: string;
 
 before(async () => {
   app = await buildTestServer();
@@ -39,7 +40,7 @@ before(async () => {
     headers: auth,
     payload: { name: "ACME Cold Logistics" },
   });
-  const carrierId = carrierRes.json().id;
+  carrierId = carrierRes.json().id;
 
   const deliveryRes = await app.inject({
     method: "POST",
@@ -133,13 +134,46 @@ test("authorizes unlock for an in-transit delivery with readings in range", asyn
 });
 
 test("denies unlock after a temperature breach", async () => {
-  // A reading far outside the range trips the breach for this delivery.
+  // The previous test finalized the shared delivery, so set up a fresh trip for
+  // this device (it was released on finalize) to exercise the breach path.
+  const breachDeliveryRes = await app.inject({
+    method: "POST",
+    url: "/deliveries",
+    headers: auth,
+    payload: {
+      from: "Warehouse A",
+      to: "Hospital B",
+      boxContents: "Insulin",
+      deviceId: device.deviceId,
+      carrierId,
+    },
+  });
+  const breachDeliveryId = breachDeliveryRes.json().id;
+  await app.inject({
+    method: "POST",
+    url: `/deliveries/${breachDeliveryId}/start`,
+    headers: auth,
+  });
+
+  // A reading far outside the range trips the breach, which finalizes the trip.
   await app.inject({
     method: "POST",
     url: "/readings",
     payload: device.nextReading(30.0),
   });
 
+  // The breach must have finalized the delivery.
+  const listRes = await app.inject({
+    method: "GET",
+    url: "/deliveries",
+    headers: auth,
+  });
+  const breached = listRes
+    .json()
+    .deliveries.find((d: { id: string }) => d.id === breachDeliveryId);
+  assert.equal(breached.status, "finished");
+
+  // With the delivery finished, a later unlock finds no active trip.
   const res = await app.inject({
     method: "POST",
     url: "/unlock",
@@ -149,5 +183,5 @@ test("denies unlock after a temperature breach", async () => {
   assert.equal(res.statusCode, 200);
   const body = res.json();
   assert.equal(body.authorized, false);
-  assert.equal(body.reason, "temperature_breach");
+  assert.equal(body.reason, "no_active_delivery");
 });
