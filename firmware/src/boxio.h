@@ -7,6 +7,9 @@
 
 enum BoxState { BOX_UNLOCKED, BOX_LOCKED, BOX_BREACH };
 
+// Human-readable name for a state (for logging).
+const char *boxStateName(BoxState s);
+
 // Configures GPIOs, the latch servo and the temperature sensor.
 void boxBegin();
 
@@ -25,6 +28,9 @@ bool doorClosed();
 
 // Drives the status LEDs from the current state; call every loop.
 void updateLeds();
+
+// Logs a one-line snapshot of reed/door, LEDs and the button (for debugging).
+void boxLogStatus();
 
 // Returns true once per debounced button press.
 bool buttonPressedEdge();

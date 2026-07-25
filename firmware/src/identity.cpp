@@ -3,6 +3,7 @@
 #include <Crypto.h>
 #include <Ed25519.h>
 
+#include "log.h"
 #include "secrets.h"
 #include "utils.h"
 
@@ -11,9 +12,11 @@ static uint8_t publicKey[32];
 
 bool identityBegin() {
   if (!hexToBytes(DEVICE_PRIVATE_KEY_HEX, privateKey, 32)) {
+    LOGE("id", "DEVICE_PRIVATE_KEY_HEX is not 64 hex chars");
     return false;
   }
   Ed25519::derivePublicKey(publicKey, privateKey);
+  LOGD("id", "Ed25519 keypair loaded and public key derived");
   return true;
 }
 
