@@ -57,8 +57,7 @@ export class IngestReading {
     private readonly verifier: SignatureVerifier,
     private readonly consensusLog: ConsensusLog,
     private readonly finisher: FinishDelivery,
-    private readonly range: BreachRange,
-    private readonly settlementEnabled: boolean
+    private readonly range: BreachRange
   ) {}
 
   async execute(input: IngestReadingInput): Promise<IngestReadingResult> {
@@ -117,22 +116,13 @@ export class IngestReading {
     });
     await this.readings.save(reading);
 
-    // 4. Mirror the reading to the active delivery escrow. This remains
-    //    best-effort so a chain outage never discards an authenticated reading.
-    const delivery =
-      (await this.deliveries.list()).find(
-        (candidate) =>
-          candidate.deviceId === reading.deviceId &&
-          candidate.status === "in_transit"
-      ) ?? null;
-    const consensus = await this.consensusLog.publish(reading, delivery);
+    // 4. A reading outside the cold-chain range ends the trip: finalize the
+    //    device's in-transit delivery (which settles the escrow as a refund).
+    await this.finalizeOnBreach(device.deviceId, reading.temperatureC);
 
-    // 5. A reading outside the cold-chain range ends the trip. This runs after
-    //    publishing so settlement sees the breach already recorded on-chain.
-    if (!this.settlementEnabled || consensus) {
-      await this.finalizeOnBreach(device.deviceId, reading.temperatureC);
-    }
-
+    // 5. Mirror the authenticated reading to the immutable consensus log.
+    //    Best-effort: a null receipt means it was not committed to HCS.
+    const consensus = await this.consensusLog.publish(reading);
     return { reading, consensus };
   }
 

@@ -8,6 +8,7 @@ import { createUseCases } from "./composition/use-cases.js";
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
 import { Ed25519SignatureVerifier } from "./infrastructure/crypto/ed25519-signature-verifier.js";
 import { buildServer } from "./interface/http/server.js";
+import { Wallet } from "ethers";
 
 /**
  * Composition root: build every concrete dependency once and wire the layers
@@ -30,8 +31,14 @@ async function main(): Promise<void> {
   const settlement = createSettlement(env, logger);
   logger.info(
     {
+      provider: env.BLOCKCHAIN_PROVIDER,
       enabled: settlement.config.enabled,
-      escrowContract: env.SEPOLIA_ESCROW_ADDRESS ?? null,
+      escrowAccount: settlement.config.enabled
+        ? env.BLOCKCHAIN_PROVIDER === "hedera"
+          ? env.HEDERA_OPERATOR_ID
+          : "configured Sepolia oracle wallet"
+        : null,
+      shipperAccount: settlement.config.shipperAccountId ?? null,
     },
     "escrow settlement ready"
   );
@@ -60,14 +67,14 @@ async function main(): Promise<void> {
     verifier,
     useCases,
     settlementEnabled: settlement.config.enabled,
-    escrowConfig: {
-      address: env.SEPOLIA_ESCROW_ADDRESS ?? null,
-      chainId: 11155111,
-      minTempC: env.TEMP_MIN_C,
-      maxTempC: env.TEMP_MAX_C,
-      requiredReadings: env.ESCROW_REQUIRED_READINGS,
-      durationSeconds: env.ESCROW_DURATION_SECONDS,
-    },
+    blockchainProvider: env.BLOCKCHAIN_PROVIDER,
+    currency: env.BLOCKCHAIN_PROVIDER === "hedera" ? "HBAR" : "ETH",
+    chainId: env.BLOCKCHAIN_PROVIDER === "sepolia" ? 11155111 : null,
+    escrowAccount:
+      env.BLOCKCHAIN_PROVIDER === "sepolia" &&
+      env.SEPOLIA_ORACLE_PRIVATE_KEY
+        ? new Wallet(env.SEPOLIA_ORACLE_PRIVATE_KEY).address
+        : env.HEDERA_OPERATOR_ID ?? null,
   });
 
   try {

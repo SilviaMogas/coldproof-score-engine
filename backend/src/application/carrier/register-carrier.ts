@@ -4,8 +4,8 @@ import type { CarrierRepository } from "../../domain/carrier/carrier-repository.
 
 export interface RegisterCarrierInput {
   name: string;
-  /** Optional EVM address that receives the escrow payout. */
-  walletAddress?: string;
+  /** Optional Hedera account that receives the escrow payout on settlement. */
+  hederaAccountId?: string;
 }
 
 /** Registers a new carrier. */

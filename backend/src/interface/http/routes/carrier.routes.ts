@@ -5,12 +5,20 @@ import type { RegisterCarrier } from "../../../application/carrier/register-carr
 import type { ListCarriers } from "../../../application/carrier/list-carriers.js";
 import type { DeleteCarrier } from "../../../application/carrier/delete-carrier.js";
 import { ValidationError } from "../../../shared/errors.js";
+import {
+  accountIdToEvmAddress,
+  evmAddressToAccountId,
+} from "../../../infrastructure/ethereum/account-id.js";
 
 const registerBody = z.object({
   name: z.string().min(1),
+  hederaAccountId: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/, "must be a Hedera account id like 0.0.1234")
+    .optional(),
   walletAddress: z
     .string()
-    .regex(/^0x[0-9a-fA-F]{40}$/, "must be a 20-byte EVM address")
+    .regex(/^0x[0-9a-fA-F]{40}$/, "must be an EVM address")
     .optional(),
 });
 
@@ -27,14 +35,17 @@ export interface CarrierRoutesDeps {
 /**
  * Carrier management routes (backoffice). All routes require authentication.
  */
-export function carrierRoutes(deps: CarrierRoutesDeps) {
+export function carrierRoutes(
+  deps: CarrierRoutesDeps,
+  provider: "hedera" | "sepolia"
+) {
   return async function (app: FastifyInstance): Promise<void> {
     app.get(
       "/carriers",
       { preHandler: app.authenticate },
       async () => {
         const carriers = await deps.listCarriers.execute();
-        return { carriers: carriers.map(toDto) };
+        return { carriers: carriers.map((carrier) => toDto(carrier, provider)) };
       }
     );
 
@@ -51,11 +62,17 @@ export function carrierRoutes(deps: CarrierRoutesDeps) {
           );
         }
 
-        const carrier = await deps.registerCarrier.execute(
-          parsed.data
-        );
+        const carrier = await deps.registerCarrier.execute({
+          name: parsed.data.name,
+          hederaAccountId:
+            provider === "sepolia"
+              ? parsed.data.walletAddress
+                ? evmAddressToAccountId(parsed.data.walletAddress)
+                : undefined
+              : parsed.data.hederaAccountId,
+        });
         reply.code(201);
-        return toDto(carrier);
+        return toDto(carrier, provider);
       }
     );
 
@@ -79,10 +96,14 @@ export function carrierRoutes(deps: CarrierRoutesDeps) {
   };
 }
 
-function toDto(t: Carrier) {
+function toDto(t: Carrier, provider: "hedera" | "sepolia") {
   return {
     id: t.id,
     name: t.name,
-    walletAddress: t.walletAddress,
+    hederaAccountId: t.hederaAccountId,
+    walletAddress:
+      provider === "sepolia" && t.hederaAccountId
+        ? accountIdToEvmAddress(t.hederaAccountId)
+        : null,
   };
 }

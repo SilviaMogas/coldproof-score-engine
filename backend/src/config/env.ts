@@ -29,10 +29,44 @@ const schema = z.object({
   PERSISTENCE: z.enum(["memory", "sqlite"]).default("memory"),
   SQLITE_PATH: z.string().min(1).default("./data/coldproof.db"),
 
+  // Selects the infrastructure adapters. Application/domain code is shared.
+  BLOCKCHAIN_PROVIDER: z.enum(["hedera", "sepolia"]).default("hedera"),
+
   COGNITO_REGION: z.string().optional(),
   COGNITO_USER_POOL_ID: z.string().min(1),
   COGNITO_CLIENT_ID: z.string().min(1),
   COGNITO_TOKEN_USE: z.enum(["access", "id"]).default("access"),
+
+  // Hedera Consensus Service. When operator credentials are omitted, readings
+  // are persisted but not mirrored to HCS (a no-op log is used).
+  HEDERA_NETWORK: z
+    .enum(["testnet", "previewnet", "mainnet"])
+    .default("testnet"),
+  HEDERA_OPERATOR_ID: z.string().optional(),
+  HEDERA_OPERATOR_KEY: z.string().optional(),
+  HEDERA_TOPIC_ID: z.string().optional(),
+
+  // Escrow settlement. When set together with the Hedera operator credentials
+  // and topic, deliveries can hold HBAR in escrow (the operator account) and
+  // settle from the HCS log: released to the carrier, or refunded here.
+  SHIPPER_ACCOUNT_ID: z.string().optional(),
+
+  // Ethereum Sepolia adapters. The oracle wallet acts as the escrow float,
+  // matching the existing Hedera operator-account model.
+  SEPOLIA_RPC_URL: z.string().url().optional(),
+  SEPOLIA_ORACLE_PRIVATE_KEY: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{64}$/)
+    .optional(),
+  SEPOLIA_CONSENSUS_ADDRESS: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/)
+    .optional(),
+  SEPOLIA_CONSENSUS_START_BLOCK: z.coerce.number().int().nonnegative().default(0),
+  SEPOLIA_SHIPPER_ADDRESS: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/)
+    .optional(),
 
   // Secure-box unlock authorization. The backend signs unlock commands with
   // this Ed25519 seed (32-byte hex); devices verify with the matching key. If
@@ -42,19 +76,6 @@ const schema = z.object({
   UNLOCK_TTL_SECONDS: z.coerce.number().int().positive().default(60),
   TEMP_MIN_C: z.coerce.number().default(2),
   TEMP_MAX_C: z.coerce.number().default(8),
-
-  // Ethereum Sepolia. When any value is omitted, readings remain local.
-  SEPOLIA_RPC_URL: z.string().url().optional(),
-  SEPOLIA_ORACLE_PRIVATE_KEY: z
-    .string()
-    .regex(/^0x[0-9a-fA-F]{64}$/)
-    .optional(),
-  SEPOLIA_ESCROW_ADDRESS: z
-    .string()
-    .regex(/^0x[0-9a-fA-F]{40}$/)
-    .optional(),
-  ESCROW_REQUIRED_READINGS: z.coerce.number().int().positive().default(3),
-  ESCROW_DURATION_SECONDS: z.coerce.number().int().positive().default(604800),
 });
 
 export type Env = z.infer<typeof schema>;

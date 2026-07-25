@@ -12,8 +12,8 @@ export interface RegisterDeliveryInput {
   boxContents: string;
   deviceId: string;
   carrierId: string;
-  /** ETH to hold in escrow for this delivery. Defaults to 0. */
-  amountEth?: number;
+  /** HBAR to hold in escrow for this delivery. Defaults to 0 (no settlement). */
+  amountHbar?: number;
 }
 
 /**
@@ -35,9 +35,9 @@ export class RegisterDelivery {
   async execute(input: RegisterDeliveryInput): Promise<Delivery> {
     const deviceId = input.deviceId?.trim();
     const carrierId = input.carrierId?.trim();
-    const amountEth = input.amountEth ?? 0;
+    const amountHbar = input.amountHbar ?? 0;
 
-    if (amountEth > 0 && !this.settlementEnabled) {
+    if (amountHbar > 0 && !this.settlementEnabled) {
       throw new ValidationError(
         "settlement is not configured on this server; create the delivery without an escrow amount"
       );
@@ -62,7 +62,7 @@ export class RegisterDelivery {
       throw new ValidationError(`carrier '${carrierId}' does not exist`);
     }
 
-    const delivery = createDelivery({ ...input, amountEth });
+    const delivery = createDelivery({ ...input, amountHbar });
     await this.deliveries.save(delivery);
     await this.devices.save(assignDevice(device));
     return delivery;

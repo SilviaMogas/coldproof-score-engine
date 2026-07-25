@@ -19,16 +19,12 @@ export interface ServerDeps {
   corsOrigin: string[];
   verifier: TokenVerifier;
   useCases: UseCases;
-  /** Whether Sepolia escrow settlement is configured on this server. */
+  /** Whether HBAR escrow settlement is configured on this server. */
   settlementEnabled: boolean;
-  escrowConfig: {
-    address: string | null;
-    chainId: number;
-    minTempC: number;
-    maxTempC: number;
-    requiredReadings: number;
-    durationSeconds: number;
-  };
+  blockchainProvider: "hedera" | "sepolia";
+  currency: "HBAR" | "ETH";
+  chainId: number | null;
+  escrowAccount: string | null;
 }
 
 /**
@@ -97,16 +93,14 @@ export async function buildServer(deps: ServerDeps) {
   await app.register(
     configRoutes({
       settlementEnabled: deps.settlementEnabled,
-      escrowAddress: deps.escrowConfig.address,
-      chainId: deps.escrowConfig.chainId,
-      minTempC: deps.escrowConfig.minTempC,
-      maxTempC: deps.escrowConfig.maxTempC,
-      requiredReadings: deps.escrowConfig.requiredReadings,
-      durationSeconds: deps.escrowConfig.durationSeconds,
+      blockchainProvider: deps.blockchainProvider,
+      currency: deps.currency,
+      chainId: deps.chainId,
+      escrowAccount: deps.escrowAccount,
     })
   );
   await app.register(deviceRoutes(deps.useCases));
-  await app.register(carrierRoutes(deps.useCases));
+  await app.register(carrierRoutes(deps.useCases, deps.blockchainProvider));
   await app.register(deliveryRoutes(deps.useCases));
   await app.register(readingRoutes(deps.useCases));
   await app.register(unlockRoutes(deps.useCases));

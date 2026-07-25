@@ -1,46 +1,42 @@
 # ColdProof
 
-ColdProof tracks signed cold-chain sensor readings and settles delivery escrow
-on Ethereum Sepolia.
+ColdProof keeps one business workflow and selects its blockchain adapters at
+runtime:
 
-## Architecture
+```env
+BLOCKCHAIN_PROVIDER=hedera
+```
 
-1. An ESP32 reads a DS18B20 sensor and signs the canonical reading with Ed25519.
-2. The Fastify backend validates the signature and stores the reading.
-3. When the device belongs to an `in_transit` delivery, the backend oracle calls
-   `ColdProofEscrow.recordReading` on Sepolia.
-4. The contract emits an indexable `ReadingRecorded` event and updates delivery
-   compliance.
-5. The oracle releases the escrow to the payee after enough compliant readings,
-   or refunds the payer after a violation. Anyone can trigger an expired refund.
+or:
 
-The contract events are the integration boundary for a future The Graph
-subgraph.
+```env
+BLOCKCHAIN_PROVIDER=sepolia
+```
 
-## Contract workflow
+The application and domain layers are shared and unchanged. Both providers
+implement the same three ports:
 
-The backend delivery UUID is represented on-chain as `keccak256(utf8(uuid))`.
-The device ID uses the same convention.
+- `ConsensusLog`: append an authenticated sensor reading.
+- `ConsensusReader`: read the immutable, ordered history used for settlement.
+- `EscrowGateway`: check the escrow float and transfer a release or refund.
 
-1. Deploy `ColdProofEscrow` with the backend oracle address.
-2. A payer calls `fundDelivery` with ETH, the payee, rule range, required reading
-   count and deadline.
-3. The payer or oracle calls `startDelivery`.
-4. The backend submits readings using its configured oracle key.
-5. The oracle calls `release` when conditions pass or `refund` after a
-   violation. `refundExpired` is permissionless after the deadline.
+## Provider mapping
 
-Temperatures are represented as integer thousandths of a Celsius degree. For
-example, `4.25 C` is `4250`.
+| Business capability | Hedera | Sepolia |
+| --- | --- | --- |
+| Immutable log | HCS topic | `ColdProofConsensus` events |
+| History reader | Hedera Mirror Node | Sepolia RPC event query |
+| Escrow float | Hedera operator account | Sepolia oracle wallet |
+| Settlement asset | HBAR | Sepolia ETH |
+
+This deliberately reproduces the existing Hedera behavior. The blockchain is
+chosen only in configuration/composition; use cases do not branch on the
+provider.
 
 ## Local verification
 
 ```sh
-cd contracts
-npm ci
-npm test
-
-cd ../backend
+cd backend
 npm ci
 npm run typecheck
 npm test
@@ -48,43 +44,20 @@ npm test
 cd ../frontend
 npm ci
 npm run build
+
+cd ../contracts
+npm ci
+npm test
 ```
-
-## Sepolia deployment
-
-Copy `contracts/.env.example` to `contracts/.env`, fund the deployer with
-Sepolia ETH and set `ORACLE_ADDRESS` to the backend wallet address.
-
-```sh
-cd contracts
-npm run deploy:sepolia
-```
-
-Copy the resulting contract address plus the RPC URL and oracle private key to
-the backend environment using `backend/.env.example`.
 
 Never commit `.env` files or private keys.
 
-Current Sepolia deployment:
+## Current Sepolia consensus deployment
 
-- `ColdProofEscrow`: `0x424194558D1c3033da1EDd51C40Bc5F089A1f791`
-- Deployment block: `11349913`
-- Deployment transaction:
-  `0x27a16467b2f187019244399405ed4ab7094a10163fdf741e5d6df383a8b24c0f`
-- Oracle: `0x7D4954f4b1db61a32D7f44c8eDd5af2b9b4a64FE`
+- Contract: `0xD76568A73Ce725CEC073b7CDE1F86bd4723EA7c3`
+- Start block: `11350115`
+- Transaction:
+  `0x8606ded77e469361c2dfb73290d9daa16af379b5d8019de382cbba937b2649b2`
 
-Machine-readable metadata is stored in `contracts/deployments/sepolia.json`.
-
-## Events for The Graph
-
-- `DeliveryFunded`
-- `DeliveryStarted`
-- `ReadingRecorded`
-- `DeliveryReleased`
-- `DeliveryRefunded`
-- `OracleUpdated`
-- `OwnershipTransferred`
-
-The three most useful indexed keys are `deliveryId`, `deviceIdHash` and sensor
-`sequence`. The deployment block printed by the deploy script should be used as
-the subgraph data source `startBlock`.
+Use the contract address and block as `SEPOLIA_CONSENSUS_ADDRESS` and
+`SEPOLIA_CONSENSUS_START_BLOCK`.

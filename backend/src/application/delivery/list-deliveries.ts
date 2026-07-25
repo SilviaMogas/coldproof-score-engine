@@ -17,9 +17,8 @@ export interface DeliveryView {
   deviceLabel: string | null;
   carrierId: string;
   carrierName: string | null;
-  carrierWalletAddress: string | null;
   status: DeliveryStatus;
-  amountEth: number;
+  amountHbar: number;
   settlementStatus: SettlementStatus;
   settlement: SettlementResult | null;
   createdAt: Date;
@@ -52,10 +51,8 @@ export class ListDeliveries {
       deviceLabel: deviceById.get(d.deviceId)?.label ?? null,
       carrierId: d.carrierId,
       carrierName: carrierById.get(d.carrierId)?.name ?? null,
-      carrierWalletAddress:
-        carrierById.get(d.carrierId)?.walletAddress ?? null,
       status: d.status,
-      amountEth: d.amountEth,
+      amountHbar: d.amountHbar,
       settlementStatus: d.settlementStatus,
       settlement: d.settlement,
       createdAt: d.createdAt,

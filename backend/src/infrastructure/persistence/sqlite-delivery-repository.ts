@@ -17,7 +17,7 @@ interface DeliveryRow {
   device_id: string;
   carrier_id: string;
   status: string;
-  amount_eth: number;
+  amount_hbar: number;
   settlement_status: string;
   settlement: string | null;
   created_at: string;
@@ -32,7 +32,7 @@ function toDelivery(row: DeliveryRow): Delivery {
     deviceId: row.device_id,
     carrierId: row.carrier_id,
     status: row.status as DeliveryStatus,
-    amountEth: row.amount_eth,
+    amountHbar: row.amount_hbar,
     settlementStatus: row.settlement_status as SettlementStatus,
     settlement: row.settlement
       ? (JSON.parse(row.settlement) as SettlementResult)
@@ -63,22 +63,14 @@ export class SqliteDeliveryRepository implements DeliveryRepository {
         device_id         TEXT NOT NULL,
         carrier_id        TEXT NOT NULL,
         status            TEXT NOT NULL DEFAULT 'ready',
-        amount_eth        REAL NOT NULL DEFAULT 0,
+        amount_hbar       REAL NOT NULL DEFAULT 0,
         settlement_status TEXT NOT NULL DEFAULT 'disabled',
         settlement        TEXT,
         created_at        TEXT NOT NULL
       );
     `);
     this.addColumnIfMissing("status", "TEXT NOT NULL DEFAULT 'ready'");
-    this.addColumnIfMissing("amount_eth", "REAL NOT NULL DEFAULT 0");
-    const columns = this.db
-      .prepare("PRAGMA table_info(deliveries)")
-      .all() as { name: string }[];
-    if (columns.some((column) => column.name === "amount_hbar")) {
-      this.db.exec(
-        "UPDATE deliveries SET amount_eth = amount_hbar WHERE amount_eth = 0"
-      );
-    }
+    this.addColumnIfMissing("amount_hbar", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing(
       "settlement_status",
       "TEXT NOT NULL DEFAULT 'disabled'"
@@ -103,10 +95,10 @@ export class SqliteDeliveryRepository implements DeliveryRepository {
       .prepare(
         `INSERT INTO deliveries
            (id, from_location, to_location, box_contents, device_id, carrier_id,
-            status, amount_eth, settlement_status, settlement, created_at)
+            status, amount_hbar, settlement_status, settlement, created_at)
          VALUES
            (@id, @from, @to, @boxContents, @deviceId, @carrierId,
-            @status, @amountEth, @settlementStatus, @settlement, @createdAt)
+            @status, @amountHbar, @settlementStatus, @settlement, @createdAt)
          ON CONFLICT(id) DO UPDATE SET
            from_location     = excluded.from_location,
            to_location       = excluded.to_location,
@@ -114,7 +106,7 @@ export class SqliteDeliveryRepository implements DeliveryRepository {
            device_id         = excluded.device_id,
            carrier_id        = excluded.carrier_id,
            status            = excluded.status,
-           amount_eth        = excluded.amount_eth,
+           amount_hbar       = excluded.amount_hbar,
            settlement_status = excluded.settlement_status,
            settlement        = excluded.settlement`
       )
@@ -126,7 +118,7 @@ export class SqliteDeliveryRepository implements DeliveryRepository {
         deviceId: delivery.deviceId,
         carrierId: delivery.carrierId,
         status: delivery.status,
-        amountEth: delivery.amountEth,
+        amountHbar: delivery.amountHbar,
         settlementStatus: delivery.settlementStatus,
         settlement: delivery.settlement
           ? JSON.stringify(delivery.settlement)

@@ -7,6 +7,7 @@ import {
   registerCarrier,
   type CarrierDto,
 } from "../api/carriers";
+import { getConfig, type AppConfig } from "../api/config";
 
 /** Backoffice carriers view: list all carriers and register new ones. */
 export default function CarriersPage() {
@@ -14,11 +15,12 @@ export default function CarriersPage() {
   const token = auth.user?.access_token;
 
   const [carriers, setCarriers] = useState<CarrierDto[]>([]);
+  const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [walletAddress, setWalletAddress] = useState("");
+  const [hederaAccountId, setHederaAccountId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -30,7 +32,12 @@ export default function CarriersPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      setCarriers(await listCarriers(token));
+      const [items, appConfig] = await Promise.all([
+        listCarriers(token),
+        getConfig(),
+      ]);
+      setCarriers(items);
+      setConfig(appConfig);
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : "Failed to load carriers"
@@ -52,10 +59,12 @@ export default function CarriersPage() {
     try {
       await registerCarrier(token, {
         name,
-        walletAddress: walletAddress.trim() || undefined,
+        ...(config?.blockchainProvider === "sepolia"
+          ? { walletAddress: hederaAccountId.trim() || undefined }
+          : { hederaAccountId: hederaAccountId.trim() || undefined }),
       });
       setName("");
-      setWalletAddress("");
+      setHederaAccountId("");
       await refresh();
     } catch (err) {
       setFormError(
@@ -93,12 +102,18 @@ export default function CarriersPage() {
           </label>
           <label className="block flex-1">
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Sepolia payout address (optional)
+              {config?.blockchainProvider === "sepolia"
+                ? "Sepolia wallet (optional)"
+                : "Hedera account (optional)"}
             </span>
             <input
-              value={walletAddress}
-              onChange={(e) => setWalletAddress(e.target.value)}
-              placeholder="0x..."
+              value={hederaAccountId}
+              onChange={(e) => setHederaAccountId(e.target.value)}
+              placeholder={
+                config?.blockchainProvider === "sepolia"
+                  ? "0x..."
+                  : "0.0.1234"
+              }
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
             />
             <span className="mt-1 block text-xs text-slate-400">
@@ -147,7 +162,11 @@ export default function CarriersPage() {
               <thead className="border-t border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-6 py-3">Name</th>
-                  <th className="px-6 py-3">Sepolia address</th>
+                  <th className="px-6 py-3">
+                    {config?.blockchainProvider === "sepolia"
+                      ? "Sepolia wallet"
+                      : "Hedera account"}
+                  </th>
                   <th className="px-6 py-3">ID</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -159,7 +178,9 @@ export default function CarriersPage() {
                       {t.name}
                     </td>
                     <td className="px-6 py-3 font-mono text-xs text-slate-500">
-                      {t.walletAddress ?? (
+                      {(config?.blockchainProvider === "sepolia"
+                        ? t.walletAddress
+                        : t.hederaAccountId) ?? (
                         <span className="font-sans text-slate-400">
                           Not set
                         </span>

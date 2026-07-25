@@ -1,79 +1,48 @@
 import {
-  Contract,
   JsonRpcProvider,
   Wallet,
   formatEther,
-  id,
+  parseEther,
 } from "ethers";
 import type {
   EscrowGateway,
-  EscrowSnapshot,
   EscrowTransfer,
-  OnChainEscrowStatus,
 } from "../../application/ports/escrow-gateway.js";
+import { accountIdToEvmAddress } from "./account-id.js";
 
-const CHAIN_ID = 11155111;
-const ABI = [
-  "function deliveries(bytes32) view returns (address payer,address payee,bytes32 deviceIdHash,int32 minTemperatureMilliC,int32 maxTemperatureMilliC,uint32 requiredReadings,uint32 compliantReadings,uint32 violations,uint64 deadline,uint256 amount,uint8 status)",
-  "function startDelivery(bytes32)",
-  "function release(bytes32)",
-  "function refund(bytes32)",
-] as const;
-const STATUSES: OnChainEscrowStatus[] = [
-  "none",
-  "funded",
-  "in_transit",
-  "released",
-  "refunded",
-];
+const SEPOLIA_CHAIN_ID = 11155111;
 
+/**
+ * Sepolia implementation of the existing escrow-account port. The configured
+ * oracle wallet holds the escrow float, exactly as the Hedera operator account
+ * does, and signs release/refund transfers selected by the unchanged use case.
+ */
 export class SepoliaEscrowGateway implements EscrowGateway {
-  private readonly contract: Contract;
+  private readonly provider: JsonRpcProvider;
+  private readonly wallet: Wallet;
 
-  constructor(rpcUrl: string, privateKey: string, contractAddress: string) {
-    const provider = new JsonRpcProvider(rpcUrl, CHAIN_ID, {
+  constructor(rpcUrl: string, privateKey: string) {
+    this.provider = new JsonRpcProvider(rpcUrl, SEPOLIA_CHAIN_ID, {
       staticNetwork: true,
     });
-    this.contract = new Contract(
-      contractAddress,
-      ABI,
-      new Wallet(privateKey, provider)
-    );
+    this.wallet = new Wallet(privateKey, this.provider);
   }
 
-  async inspect(deliveryId: string): Promise<EscrowSnapshot> {
-    const values = await this.contract.getFunction("deliveries")(id(deliveryId));
-    const status = Number(values.status);
-    return {
-      payer: status === 0 ? null : String(values.payer),
-      payee: status === 0 ? null : String(values.payee),
-      deviceIdHash: status === 0 ? null : String(values.deviceIdHash),
-      amountEth: Number(formatEther(values.amount)),
-      minTemperatureMilliC: Number(values.minTemperatureMilliC),
-      maxTemperatureMilliC: Number(values.maxTemperatureMilliC),
-      requiredReadings: Number(values.requiredReadings),
-      compliantReadings: Number(values.compliantReadings),
-      violations: Number(values.violations),
-      status: STATUSES[status] ?? "none",
-    };
+  async balanceHbar(): Promise<number> {
+    const balance = await this.provider.getBalance(this.wallet.address);
+    return Number(formatEther(balance));
   }
 
-  async start(deliveryId: string): Promise<EscrowTransfer> {
-    return this.send("startDelivery", deliveryId);
-  }
-
-  async release(deliveryId: string): Promise<EscrowTransfer> {
-    return this.send("release", deliveryId);
-  }
-
-  async refund(deliveryId: string): Promise<EscrowTransfer> {
-    return this.send("refund", deliveryId);
-  }
-
-  private async send(method: string, deliveryId: string): Promise<EscrowTransfer> {
-    const tx = await this.contract.getFunction(method)(id(deliveryId));
+  async transfer(
+    toAccountId: string,
+    amountHbar: number
+  ): Promise<EscrowTransfer> {
+    const tx = await this.wallet.sendTransaction({
+      to: accountIdToEvmAddress(toAccountId),
+      value: parseEther(String(amountHbar)),
+    });
     const receipt = await tx.wait();
-    if (!receipt) throw new Error(`${method} transaction was not mined`);
-    return { transactionId: receipt.hash, status: "success" };
+    if (!receipt) throw new Error("Sepolia transfer was not mined");
+    return { transactionId: receipt.hash, status: "SUCCESS" };
   }
 }

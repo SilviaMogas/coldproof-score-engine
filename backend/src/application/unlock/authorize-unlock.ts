@@ -48,8 +48,6 @@ const messageSchema = z.object({
   nonce: z.string().min(1).max(128),
   ts: z.number().nonnegative(),
 });
-const MAX_REQUEST_AGE_SECONDS = 300;
-const MAX_FUTURE_SKEW_SECONDS = 60;
 
 /**
  * Server-authoritative unlock authorization for the secure box.
@@ -62,8 +60,6 @@ const MAX_FUTURE_SKEW_SECONDS = 60;
  * response cannot force the box open.
  */
 export class AuthorizeUnlock {
-  private readonly usedRequests = new Set<string>();
-
   constructor(
     private readonly devices: DeviceRepository,
     private readonly deliveries: DeliveryRepository,
@@ -123,19 +119,6 @@ export class AuthorizeUnlock {
     if (device.status === "revoked") {
       throw new ForbiddenError(`device '${parsed.data.deviceId}' is revoked`);
     }
-
-    const now = Math.floor(Date.now() / 1000);
-    if (
-      parsed.data.ts < now - MAX_REQUEST_AGE_SECONDS ||
-      parsed.data.ts > now + MAX_FUTURE_SKEW_SECONDS
-    ) {
-      throw new UnauthorizedError("unlock request timestamp is stale");
-    }
-    const requestId = `${device.deviceId}:${parsed.data.nonce}`;
-    if (this.usedRequests.has(requestId)) {
-      throw new UnauthorizedError("unlock request was already used");
-    }
-    this.usedRequests.add(requestId);
 
     // 4. The box may only open for a delivery that is in transit.
     const all = await this.deliveries.list();

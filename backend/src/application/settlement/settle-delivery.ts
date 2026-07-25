@@ -4,98 +4,132 @@ import type {
 } from "../../domain/delivery/delivery.js";
 import { applySettlement } from "../../domain/delivery/delivery.js";
 import type { DeliveryRepository } from "../../domain/delivery/delivery-repository.js";
+import type { CarrierRepository } from "../../domain/carrier/carrier-repository.js";
 import type {
-  EscrowGateway,
-  EscrowSnapshot,
-} from "../ports/escrow-gateway.js";
+  ConsensusReader,
+  MirroredReading,
+} from "../ports/consensus-reader.js";
+import type { EscrowGateway } from "../ports/escrow-gateway.js";
 
+/** Range and identities used to decide and execute a settlement. */
 export interface SettlementConfig {
+  /** When false, settlement is a no-op (Hedera/escrow not configured). */
   enabled: boolean;
   minTempC: number;
   maxTempC: number;
-  requiredReadings: number;
+  /** Account refunded when the cold chain fails; required to refund. */
+  shipperAccountId?: string;
 }
 
+/** Collaborator that settles a finished delivery. */
 export interface DeliverySettler {
   settle(delivery: Delivery): Promise<Delivery>;
 }
 
-/** Settles from the escrow state produced by Sepolia reading transactions. */
+/**
+ * Settles a finished delivery using ONLY the HCS reading log.
+ *
+ * It reads the topic back from the mirror node, keeps the readings that belong
+ * to this delivery's device and time window, and checks every one against the
+ * agreed range. If the chain held, the escrow is released to the carrier; if a
+ * reading breached (or none can be verified), the shipper is refunded. Any
+ * failure to move funds is recorded as `unsettled` rather than throwing, so
+ * finishing a delivery never fails because Hedera is unavailable.
+ */
 export class SettleDelivery implements DeliverySettler {
   constructor(
     private readonly deliveries: DeliveryRepository,
+    private readonly carriers: CarrierRepository,
+    private readonly reader: ConsensusReader,
     private readonly escrow: EscrowGateway,
     private readonly config: SettlementConfig
   ) {}
 
   async settle(delivery: Delivery): Promise<Delivery> {
+    // Nothing to settle: no escrow, or settlement not configured.
     if (
       !this.config.enabled ||
-      delivery.amountEth <= 0 ||
+      delivery.amountHbar <= 0 ||
       delivery.settlementStatus === "disabled"
     ) {
       return delivery;
     }
 
-    let chain: EscrowSnapshot;
-    try {
-      chain = await this.escrow.inspect(delivery.id);
-    } catch (err) {
-      const result: SettlementResult = {
-        verdict: "unsettled",
-        reason: `could not inspect the Sepolia escrow: ${(err as Error).message}`,
-        totalReadings: 0,
-        violations: 0,
-        minTempC: null,
-        maxTempC: null,
-        paidTo: null,
-        amountEth: delivery.amountEth,
-        transactionId: null,
-        settledAt: new Date().toISOString(),
-      };
-      const unsettled = applySettlement(delivery, result);
-      await this.deliveries.save(unsettled);
-      return unsettled;
-    }
-    const passed =
-      chain.violations === 0 &&
-      chain.compliantReadings >= chain.requiredReadings &&
-      chain.requiredReadings > 0;
+    // 1. Pull the immutable log and keep this delivery's readings.
+    const messages = await this.reader.fetchMessages();
+    const temps = messages
+      .map((m) => m.payload as Partial<MirroredReading>)
+      .filter(
+        (p): p is MirroredReading =>
+          !!p &&
+          p.deviceId === delivery.deviceId &&
+          typeof p.receivedAt === "string" &&
+          new Date(p.receivedAt) >= delivery.createdAt &&
+          typeof p.temperatureC === "number"
+      )
+      .map((p) => p.temperatureC);
+
+    // 2. Deterministic verdict: every reading must be in range, and there must
+    //    be at least one reading to prove the chain was actually monitored.
+    const violations = temps.filter(
+      (t) => t < this.config.minTempC || t > this.config.maxTempC
+    );
+    const passed = temps.length > 0 && violations.length === 0;
+    const minTempC = temps.length ? Math.min(...temps) : null;
+    const maxTempC = temps.length ? Math.max(...temps) : null;
+
+    // 3. Pick the payout recipient.
+    const carrier = await this.carriers.findById(delivery.carrierId);
+    const recipient = passed
+      ? carrier?.hederaAccountId ?? null
+      : this.config.shipperAccountId ?? null;
+
     const baseReason = passed
-      ? "cold chain held: required readings were compliant"
-      : chain.violations > 0
-        ? `${chain.violations} reading(s) breached the range`
-        : "insufficient on-chain readings to verify the cold chain";
+      ? "cold chain held: all readings within range"
+      : temps.length === 0
+        ? "no HCS readings to verify the cold chain"
+        : `${violations.length} reading(s) breached the range`;
 
     let verdict: SettlementResult["verdict"] = passed
       ? "released"
       : "refunded";
     let reason = baseReason;
     let transactionId: string | null = null;
-    try {
-      const transfer = passed
-        ? await this.escrow.release(delivery.id)
-        : await this.escrow.refund(delivery.id);
-      transactionId = transfer.transactionId;
-    } catch (err) {
+
+    if (!recipient) {
       verdict = "unsettled";
-      reason = `${baseReason}, but the Sepolia transaction failed: ${
-        (err as Error).message
-      }`;
+      reason = passed
+        ? `${baseReason}, but the carrier has no Hedera account`
+        : `${baseReason}, but no shipper refund account is configured`;
+    } else {
+      // 4. Move the escrowed funds. Best-effort: record failures, never throw.
+      try {
+        const transfer = await this.escrow.transfer(
+          recipient,
+          delivery.amountHbar
+        );
+        transactionId = transfer.transactionId;
+      } catch (err) {
+        verdict = "unsettled";
+        reason = `${baseReason}, but the transfer failed: ${
+          (err as Error).message
+        }`;
+      }
     }
 
     const result: SettlementResult = {
       verdict,
       reason,
-      totalReadings: chain.compliantReadings + chain.violations,
-      violations: chain.violations,
-      minTempC: null,
-      maxTempC: null,
-      paidTo: transactionId ? (passed ? chain.payee : chain.payer) : null,
-      amountEth: delivery.amountEth,
+      totalReadings: temps.length,
+      violations: violations.length,
+      minTempC,
+      maxTempC,
+      paidTo: transactionId ? recipient : null,
+      amountHbar: delivery.amountHbar,
       transactionId,
       settledAt: new Date().toISOString(),
     };
+
     const settled = applySettlement(delivery, result);
     await this.deliveries.save(settled);
     return settled;

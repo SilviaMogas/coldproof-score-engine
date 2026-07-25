@@ -3,7 +3,11 @@ import type {
   ConsensusReceipt,
 } from "../../application/ports/consensus-log.js";
 
-/** Used when Sepolia is disabled and in tests. */
+/**
+ * No-op consensus log used when Hedera credentials are not configured (e.g.
+ * local development). Readings are still persisted; they are simply not
+ * mirrored to HCS.
+ */
 export class NoopConsensusLog implements ConsensusLog {
   async publish(): Promise<ConsensusReceipt | null> {
     return null;

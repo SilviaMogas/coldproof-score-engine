@@ -15,7 +15,7 @@ import {
 } from "../api/deliveries";
 import { listCarriers, type CarrierDto } from "../api/carriers";
 import { getConfig, type AppConfig } from "../api/config";
-import { fundDeliveryEscrow } from "../web3/escrow";
+import { fundSepoliaEscrow } from "../web3/sepolia";
 
 const emptyForm: RegisterDeliveryInput = {
   from: "",
@@ -33,7 +33,6 @@ export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState<DeliveryDto[]>([]);
   const [devices, setDevices] = useState<AvailableDeviceDto[]>([]);
   const [carriers, setCarriers] = useState<CarrierDto[]>([]);
-  const [settlementEnabled, setSettlementEnabled] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -66,7 +65,6 @@ export default function DeliveriesPage() {
       setDeliveries(d);
       setDevices(dev);
       setCarriers(car);
-      setSettlementEnabled(cfg.settlementEnabled);
       setAppConfig(cfg);
     } catch (err) {
       setLoadError(
@@ -87,8 +85,8 @@ export default function DeliveriesPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      const amountEth = amount.trim() ? Number(amount) : 0;
-      await registerDelivery(token, { ...form, amountEth });
+      const amountHbar = amount.trim() ? Number(amount) : 0;
+      await registerDelivery(token, { ...form, amountHbar });
       setForm(emptyForm);
       setAmount("");
       await refresh();
@@ -150,12 +148,12 @@ export default function DeliveriesPage() {
     }
   };
 
-  const onFundEscrow = async (delivery: DeliveryDto) => {
+  const onFundSepolia = async (delivery: DeliveryDto) => {
     if (!appConfig) return;
     setFundingId(delivery.id);
     setRowError(null);
     try {
-      await fundDeliveryEscrow(delivery, appConfig);
+      await fundSepoliaEscrow(delivery.amountHbar, appConfig);
       await confirmEscrow(token, delivery.id);
       await refresh();
     } catch (err) {
@@ -269,13 +267,13 @@ export default function DeliveriesPage() {
             options={carriers.map((c) => ({ value: c.id, label: c.name }))}
           />
           <TextField
-            label="Escrow amount (ETH, optional)"
+            label={`Escrow amount (${appConfig?.currency ?? "HBAR"}, optional)`}
             placeholder="e.g. 50 — leave blank for no escrow"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            disabled={!settlementEnabled}
+            disabled={!appConfig?.settlementEnabled}
             hint={
-              settlementEnabled
+              appConfig?.settlementEnabled
                 ? "Held in escrow and released to the carrier only if the cold chain holds."
                 : "Escrow settlement is not configured on this server."
             }
@@ -368,7 +366,10 @@ export default function DeliveriesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-3">
-                      <EscrowCell delivery={d} />
+                      <EscrowCell
+                        delivery={d}
+                        currency={appConfig?.currency ?? "HBAR"}
+                      />
                     </td>
                     <td className="px-6 py-3 text-slate-500">
                       {new Date(d.createdAt).toLocaleString()}
@@ -378,15 +379,17 @@ export default function DeliveriesPage() {
                         {d.status === "ready" &&
                           d.settlementStatus === "awaiting_escrow" && (
                             <>
-                              <button
-                                onClick={() => void onFundEscrow(d)}
-                                disabled={fundingId === d.id}
-                                className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
-                              >
-                                {fundingId === d.id
-                                  ? "Funding..."
-                                  : "Fund with wallet"}
-                              </button>
+                              {appConfig?.blockchainProvider === "sepolia" && (
+                                <button
+                                  onClick={() => void onFundSepolia(d)}
+                                  disabled={fundingId === d.id}
+                                  className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                                >
+                                  {fundingId === d.id
+                                    ? "Funding..."
+                                    : "Fund with wallet"}
+                                </button>
+                              )}
                               <button
                                 onClick={() => void onConfirmEscrow(d)}
                                 disabled={confirmingId === d.id}
@@ -394,7 +397,7 @@ export default function DeliveriesPage() {
                               >
                                 {confirmingId === d.id
                                   ? "Confirming..."
-                                  : "Already funded"}
+                                  : "Confirm escrow"}
                               </button>
                             </>
                           )}
@@ -482,8 +485,14 @@ export default function DeliveriesPage() {
 }
 
 /** Shows the escrow amount and settlement outcome for a delivery. */
-function EscrowCell({ delivery }: { delivery: DeliveryDto }) {
-  if (delivery.settlementStatus === "disabled" || delivery.amountEth <= 0) {
+function EscrowCell({
+  delivery,
+  currency,
+}: {
+  delivery: DeliveryDto;
+  currency: "HBAR" | "ETH";
+}) {
+  if (delivery.settlementStatus === "disabled" || delivery.amountHbar <= 0) {
     return <span className="text-xs text-slate-400">No escrow</span>;
   }
 
@@ -513,7 +522,7 @@ function EscrowCell({ delivery }: { delivery: DeliveryDto }) {
   return (
     <div className="space-y-1">
       <div className="font-mono text-xs text-slate-700">
-        {delivery.amountEth} ETH
+        {delivery.amountHbar} {currency}
       </div>
       <span
         className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${badge.className}`}

@@ -1,9 +1,9 @@
 {
   "network": "sepolia",
   "chainId": 11155111,
-  "contract": "ColdProofEscrow",
-  "address": "0x424194558D1c3033da1EDd51C40Bc5F089A1f791",
-  "deploymentTransaction": "0x27a16467b2f187019244399405ed4ab7094a10163fdf741e5d6df383a8b24c0f",
-  "deploymentBlock": 11349913,
+  "contract": "ColdProofConsensus",
+  "address": "0xD76568A73Ce725CEC073b7CDE1F86bd4723EA7c3",
+  "deploymentTransaction": "0x8606ded77e469361c2dfb73290d9daa16af379b5d8019de382cbba937b2649b2",
+  "deploymentBlock": 11350115,
   "oracle": "0x7D4954f4b1db61a32D7f44c8eDd5af2b9b4a64FE"
 }

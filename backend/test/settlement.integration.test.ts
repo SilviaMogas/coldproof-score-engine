@@ -4,126 +4,131 @@ import type { FastifyInstance } from "fastify";
 import { buildTestServer, TEST_TOKEN } from "./support/harness.js";
 import { FakeDevice } from "./support/fake-device.js";
 import type {
+  ConsensusMessage,
+  ConsensusReader,
+  MirroredReading,
+} from "../src/application/ports/consensus-reader.js";
+import type {
   EscrowGateway,
-  EscrowSnapshot,
   EscrowTransfer,
 } from "../src/application/ports/escrow-gateway.js";
-import { id as hashId } from "ethers";
 
-class FakeEscrowGateway implements EscrowGateway {
-  readonly escrows = new Map<string, EscrowSnapshot>();
-  readonly actions: { action: string; deliveryId: string }[] = [];
-  failNextInspect = false;
-  private counter = 0;
+/**
+ * End-to-end test of the Option A escrow settlement flow:
+ *   create (awaiting_escrow) → confirm-escrow (escrowed) → start → finish,
+ * with the finish verdict computed ONLY from the HCS reading log (via a fake
+ * consensus reader) and the payout executed through a fake escrow gateway.
+ */
 
-  async inspect(deliveryId: string): Promise<EscrowSnapshot> {
-    if (this.failNextInspect) {
-      this.failNextInspect = false;
-      throw new Error("temporary RPC failure");
-    }
-    return (
-      this.escrows.get(deliveryId) ?? {
-        payer: null,
-        payee: null,
-        deviceIdHash: null,
-        amountEth: 0,
-        minTemperatureMilliC: 0,
-        maxTemperatureMilliC: 0,
-        requiredReadings: 0,
-        compliantReadings: 0,
-        violations: 0,
-        status: "none",
-      }
-    );
-  }
+/** Consensus reader whose readings are set per scenario. */
+class FakeConsensusReader implements ConsensusReader {
+  private readings: MirroredReading[] = [];
+  private seq = 0;
 
-  fund(deliveryId: string, deviceId: string, amountEth: number): void {
-    this.escrows.set(deliveryId, {
-      payer: PAYER,
-      payee: CARRIER_WALLET,
-      deviceIdHash: hashId(deviceId),
-      amountEth,
-      minTemperatureMilliC: 2000,
-      maxTemperatureMilliC: 8000,
-      requiredReadings: 2,
-      compliantReadings: 0,
-      violations: 0,
-      status: "funded",
-    });
+  /** Replace the log with readings of `temps` for `deviceId`, dated now. */
+  setReadings(deviceId: string, temps: number[]): void {
+    const now = new Date().toISOString();
+    this.readings = temps.map((t, i) => ({
+      deviceId,
+      seq: i + 1,
+      temperatureC: t,
+      unit: "C",
+      ts: now,
+      pubKey: "",
+      sig: "",
+      receivedAt: now,
+    }));
   }
 
-  readings(deliveryId: string, compliant: number, violations: number): void {
-    const escrow = this.escrows.get(deliveryId);
-    if (!escrow) throw new Error("escrow missing");
-    Object.assign(escrow, { compliantReadings: compliant, violations });
-  }
-
-  async start(deliveryId: string): Promise<EscrowTransfer> {
-    const escrow = this.escrows.get(deliveryId);
-    if (!escrow) throw new Error("escrow missing");
-    escrow.status = "in_transit";
-    return this.record("start", deliveryId);
-  }
-  async release(deliveryId: string): Promise<EscrowTransfer> {
-    return this.record("release", deliveryId);
-  }
-  async refund(deliveryId: string): Promise<EscrowTransfer> {
-    return this.record("refund", deliveryId);
-  }
-  private record(action: string, deliveryId: string): EscrowTransfer {
-    this.actions.push({ action, deliveryId });
-    return { transactionId: `0xtx${++this.counter}`, status: "success" };
+  async fetchMessages(): Promise<ConsensusMessage[]> {
+    return this.readings.map((payload) => ({
+      sequenceNumber: ++this.seq,
+      consensusTimestamp: "1700000000.000000000",
+      payload,
+    }));
   }
 }
 
-const CARRIER_WALLET = "0x1111111111111111111111111111111111111111";
-const PAYER = "0x9999999999999999999999999999999999999999";
-const auth = { authorization: `Bearer ${TEST_TOKEN}` };
+/** Escrow gateway with a fixed balance that records every transfer. */
+class FakeEscrowGateway implements EscrowGateway {
+  readonly transfers: { to: string; amount: number }[] = [];
+  private counter = 0;
+
+  constructor(private balance: number) {}
+
+  async balanceHbar(): Promise<number> {
+    return this.balance;
+  }
+
+  async transfer(to: string, amount: number): Promise<EscrowTransfer> {
+    this.transfers.push({ to, amount });
+    return { transactionId: `0.0.1@${++this.counter}`, status: "SUCCESS" };
+  }
+}
+
+const CARRIER_ACCOUNT = "0.0.1111";
+const SHIPPER_ACCOUNT = "0.0.9999";
+
 let app: FastifyInstance;
+let reader: FakeConsensusReader;
 let escrow: FakeEscrowGateway;
 let carrierId: string;
+const auth = { authorization: `Bearer ${TEST_TOKEN}` };
 
 before(async () => {
-  escrow = new FakeEscrowGateway();
+  reader = new FakeConsensusReader();
+  escrow = new FakeEscrowGateway(1000);
   app = await buildTestServer({
     settlement: {
+      reader,
       escrow,
       config: {
         enabled: true,
         minTempC: 2,
         maxTempC: 8,
-        requiredReadings: 2,
+        shipperAccountId: SHIPPER_ACCOUNT,
       },
     },
   });
-  const carrier = await app.inject({
+
+  const res = await app.inject({
     method: "POST",
     url: "/carriers",
     headers: auth,
-    payload: { name: "Cold Chain Co", walletAddress: CARRIER_WALLET },
+    payload: { name: "Cold Chain Co", hederaAccountId: CARRIER_ACCOUNT },
   });
-  assert.equal(carrier.statusCode, 201);
-  carrierId = carrier.json().id;
+  assert.equal(res.statusCode, 201);
+  carrierId = res.json().id;
+  assert.equal(res.json().hederaAccountId, CARRIER_ACCOUNT);
 });
 
-after(async () => app.close());
+after(async () => {
+  await app.close();
+});
 
-async function createDelivery(
-  name: string,
-  amountEth: number
-): Promise<{ id: string; deviceId: string; device: FakeDevice }> {
-  const device = new FakeDevice(name);
-  await app.inject({
+/** Registers a fresh device and returns its id. */
+async function registerDevice(id: string): Promise<string> {
+  const device = new FakeDevice(id);
+  const res = await app.inject({
     method: "POST",
     url: "/devices",
     headers: auth,
     payload: {
       deviceId: device.deviceId,
       publicKey: device.publicKeyHex,
-      label: name,
+      label: id,
     },
   });
-  const created = await app.inject({
+  assert.equal(res.statusCode, 201);
+  return device.deviceId;
+}
+
+/** Creates a delivery with an escrow amount and returns its id. */
+async function createDelivery(
+  deviceId: string,
+  amountHbar: number
+): Promise<string> {
+  const res = await app.inject({
     method: "POST",
     url: "/deliveries",
     headers: auth,
@@ -131,181 +136,194 @@ async function createDelivery(
       from: "Warehouse",
       to: "Clinic",
       boxContents: "Vaccines",
-      deviceId: device.deviceId,
+      deviceId,
       carrierId,
-      amountEth,
+      amountHbar,
     },
   });
-  assert.equal(created.statusCode, 201);
-  return { id: created.json().id, deviceId: device.deviceId, device };
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.json().amountHbar, amountHbar);
+  assert.equal(res.json().settlementStatus, "awaiting_escrow");
+  return res.json().id;
 }
 
-async function confirmAndStart(
-  id: string,
-  deviceId: string,
-  amountEth: number
-): Promise<void> {
-  escrow.fund(id, deviceId, amountEth);
-  const confirmed = await app.inject({
-    method: "POST",
-    url: `/deliveries/${id}/confirm-escrow`,
-    headers: auth,
-  });
-  assert.equal(confirmed.statusCode, 200);
-  const started = await app.inject({
+test("cannot start a delivery before its escrow is confirmed", async () => {
+  const deviceId = await registerDevice("settle-gate");
+  const id = await createDelivery(deviceId, 50);
+
+  const res = await app.inject({
     method: "POST",
     url: `/deliveries/${id}/start`,
     headers: auth,
   });
-  assert.equal(started.statusCode, 200);
-}
 
-test("cannot start before its Sepolia escrow is confirmed", async () => {
-  const { id } = await createDelivery("settle-gate", 0.05);
-  const response = await app.inject({
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.json().error.code, "VALIDATION_ERROR");
+});
+
+test("releases the escrow to the carrier when the cold chain held", async () => {
+  const deviceId = await registerDevice("settle-ok");
+  const id = await createDelivery(deviceId, 50);
+
+  const confirm = await app.inject({
+    method: "POST",
+    url: `/deliveries/${id}/confirm-escrow`,
+    headers: auth,
+  });
+  assert.equal(confirm.statusCode, 200);
+  assert.equal(confirm.json().settlementStatus, "escrowed");
+
+  const start = await app.inject({
     method: "POST",
     url: `/deliveries/${id}/start`,
     headers: auth,
   });
-  assert.equal(response.statusCode, 400);
+  assert.equal(start.statusCode, 200);
+  assert.equal(start.json().status, "in_transit");
+
+  reader.setReadings(deviceId, [3.5, 4.1, 5.0]);
+  const before = escrow.transfers.length;
+
+  const finish = await app.inject({
+    method: "POST",
+    url: `/deliveries/${id}/finish`,
+    headers: auth,
+  });
+  assert.equal(finish.statusCode, 200);
+  const body = finish.json();
+  assert.equal(body.settlementStatus, "released");
+  assert.equal(body.settlement.verdict, "released");
+  assert.equal(body.settlement.paidTo, CARRIER_ACCOUNT);
+  assert.equal(body.settlement.amountHbar, 50);
+  assert.equal(body.settlement.violations, 0);
+  assert.equal(body.settlement.totalReadings, 3);
+  assert.ok(body.settlement.transactionId);
+
+  assert.equal(escrow.transfers.length, before + 1);
+  assert.deepEqual(escrow.transfers.at(-1), { to: CARRIER_ACCOUNT, amount: 50 });
 });
 
-test("starting from the device seal also starts the Sepolia escrow", async () => {
-  const { id, deviceId, device } = await createDelivery(
-    "settle-seal-start",
-    0.05
-  );
-  escrow.fund(id, deviceId, 0.05);
-  const confirmed = await app.inject({
+test("refunds the shipper when a reading breached the range", async () => {
+  const deviceId = await registerDevice("settle-breach");
+  const id = await createDelivery(deviceId, 30);
+
+  await app.inject({
     method: "POST",
     url: `/deliveries/${id}/confirm-escrow`,
     headers: auth,
   });
-  assert.equal(confirmed.statusCode, 200);
-
-  const request = device.requestUnlock("seal-start");
-  const sealed = await app.inject({
+  await app.inject({
     method: "POST",
-    url: "/seal",
-    payload: request,
-  });
-  assert.equal(sealed.statusCode, 200);
-  assert.equal(sealed.json().sealed, true);
-  assert.deepEqual(escrow.actions.at(-1), { action: "start", deliveryId: id });
-  assert.equal(escrow.escrows.get(id)?.status, "in_transit");
-
-  const replayed = await app.inject({
-    method: "POST",
-    url: "/seal",
-    payload: request,
-  });
-  assert.equal(replayed.statusCode, 401);
-});
-
-test("cannot delete a delivery while its Sepolia escrow is active", async () => {
-  const { id, deviceId } = await createDelivery("settle-delete-guard", 0.05);
-  await confirmAndStart(id, deviceId, 0.05);
-  const response = await app.inject({
-    method: "DELETE",
-    url: `/deliveries/${id}`,
+    url: `/deliveries/${id}/start`,
     headers: auth,
   });
-  assert.equal(response.statusCode, 409);
+
+  reader.setReadings(deviceId, [3.0, 12.4, 4.0]);
+  const before = escrow.transfers.length;
+
+  const finish = await app.inject({
+    method: "POST",
+    url: `/deliveries/${id}/finish`,
+    headers: auth,
+  });
+  assert.equal(finish.statusCode, 200);
+  const body = finish.json();
+  assert.equal(body.settlementStatus, "refunded");
+  assert.equal(body.settlement.verdict, "refunded");
+  assert.equal(body.settlement.paidTo, SHIPPER_ACCOUNT);
+  assert.equal(body.settlement.violations, 1);
+
+  assert.equal(escrow.transfers.length, before + 1);
+  assert.deepEqual(escrow.transfers.at(-1), { to: SHIPPER_ACCOUNT, amount: 30 });
 });
 
-test("rejects an on-chain amount mismatch", async () => {
-  const { id, deviceId } = await createDelivery("settle-mismatch", 0.05);
-  escrow.fund(id, deviceId, 0.01);
-  const response = await app.inject({
+test("refunds the shipper when there are no HCS readings to verify", async () => {
+  const deviceId = await registerDevice("settle-empty");
+  const id = await createDelivery(deviceId, 20);
+
+  await app.inject({
     method: "POST",
     url: `/deliveries/${id}/confirm-escrow`,
     headers: auth,
   });
-  assert.equal(response.statusCode, 400);
-});
+  await app.inject({
+    method: "POST",
+    url: `/deliveries/${id}/start`,
+    headers: auth,
+  });
 
-test("releases after the required compliant readings", async () => {
-  const { id, deviceId } = await createDelivery("settle-ok", 0.05);
-  await confirmAndStart(id, deviceId, 0.05);
-  escrow.readings(id, 2, 0);
-  const response = await app.inject({
+  reader.setReadings(deviceId, []);
+  const before = escrow.transfers.length;
+
+  const finish = await app.inject({
     method: "POST",
     url: `/deliveries/${id}/finish`,
     headers: auth,
   });
-  assert.equal(response.json().settlementStatus, "released");
-  assert.equal(response.json().settlement.amountEth, 0.05);
-  assert.equal(response.json().settlement.paidTo, CARRIER_WALLET);
-  assert.equal(escrow.actions.at(-1)?.action, "release");
+  assert.equal(finish.statusCode, 200);
+  const body = finish.json();
+  assert.equal(body.settlementStatus, "refunded");
+  assert.equal(body.settlement.verdict, "refunded");
+  assert.equal(body.settlement.totalReadings, 0);
+  assert.equal(body.settlement.paidTo, SHIPPER_ACCOUNT);
+
+  assert.equal(escrow.transfers.length, before + 1);
+  assert.deepEqual(escrow.transfers.at(-1), { to: SHIPPER_ACCOUNT, amount: 20 });
 });
 
-test("refunds when a reading violated the range", async () => {
-  const { id, deviceId } = await createDelivery("settle-breach", 0.03);
-  await confirmAndStart(id, deviceId, 0.03);
-  escrow.readings(id, 1, 1);
-  const response = await app.inject({
+test("confirm-escrow fails when the escrow balance is insufficient", async () => {
+  const poor = new FakeEscrowGateway(5);
+  const poorApp = await buildTestServer({
+    settlement: {
+      reader: new FakeConsensusReader(),
+      escrow: poor,
+      config: {
+        enabled: true,
+        minTempC: 2,
+        maxTempC: 8,
+        shipperAccountId: SHIPPER_ACCOUNT,
+      },
+    },
+  });
+
+  const carrier = await poorApp.inject({
     method: "POST",
-    url: `/deliveries/${id}/finish`,
+    url: "/carriers",
     headers: auth,
+    payload: { name: "Carrier", hederaAccountId: CARRIER_ACCOUNT },
   });
-  assert.equal(response.json().settlementStatus, "refunded");
-  assert.equal(response.json().settlement.paidTo, PAYER);
-  assert.equal(escrow.actions.at(-1)?.action, "refund");
-});
-
-test("records an RPC failure as unsettled and retries on finish", async () => {
-  const { id, deviceId } = await createDelivery("settle-retry", 0.02);
-  await confirmAndStart(id, deviceId, 0.02);
-  escrow.readings(id, 2, 0);
-  escrow.failNextInspect = true;
-
-  const failed = await app.inject({
+  const device = new FakeDevice("settle-poor");
+  await poorApp.inject({
     method: "POST",
-    url: `/deliveries/${id}/finish`,
+    url: "/devices",
     headers: auth,
+    payload: {
+      deviceId: device.deviceId,
+      publicKey: device.publicKeyHex,
+      label: "poor",
+    },
   });
-  assert.equal(failed.statusCode, 200);
-  assert.equal(failed.json().status, "finished");
-  assert.equal(failed.json().settlementStatus, "unsettled");
-
-  const retried = await app.inject({
+  const created = await poorApp.inject({
     method: "POST",
-    url: `/deliveries/${id}/finish`,
-    headers: auth,
-  });
-  assert.equal(retried.statusCode, 200);
-  assert.equal(retried.json().settlementStatus, "released");
-  assert.equal(escrow.actions.at(-1)?.action, "release");
-});
-
-test("does not settle a breach that failed to reach Sepolia", async () => {
-  const { id, deviceId, device } = await createDelivery(
-    "settle-chain-outage",
-    0.02
-  );
-  await confirmAndStart(id, deviceId, 0.02);
-  escrow.readings(id, 2, 0);
-  const actionCount = escrow.actions.length;
-
-  // The test server uses a no-op consensus log. The local breach is accepted,
-  // but must not settle from the stale compliant on-chain snapshot.
-  const ingested = await app.inject({
-    method: "POST",
-    url: "/readings",
-    payload: device.nextReading(20),
-  });
-  assert.equal(ingested.statusCode, 201);
-  assert.equal(ingested.json().consensus, null);
-
-  const listed = await app.inject({
-    method: "GET",
     url: "/deliveries",
     headers: auth,
+    payload: {
+      from: "A",
+      to: "B",
+      boxContents: "X",
+      deviceId: device.deviceId,
+      carrierId: carrier.json().id,
+      amountHbar: 100,
+    },
   });
-  const delivery = listed
-    .json()
-    .deliveries.find((candidate: { id: string }) => candidate.id === id);
-  assert.equal(delivery.status, "in_transit");
-  assert.equal(delivery.settlementStatus, "escrowed");
-  assert.equal(escrow.actions.length, actionCount);
+
+  const confirm = await poorApp.inject({
+    method: "POST",
+    url: `/deliveries/${created.json().id}/confirm-escrow`,
+    headers: auth,
+  });
+  assert.equal(confirm.statusCode, 400);
+  assert.equal(confirm.json().error.code, "VALIDATION_ERROR");
+
+  await poorApp.close();
 });
