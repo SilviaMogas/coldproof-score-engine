@@ -14,7 +14,8 @@ import {
   type RegisterDeliveryInput,
 } from "../api/deliveries";
 import { listCarriers, type CarrierDto } from "../api/carriers";
-import { getConfig } from "../api/config";
+import { getConfig, type AppConfig } from "../api/config";
+import { fundDeliveryEscrow } from "../web3/escrow";
 
 const emptyForm: RegisterDeliveryInput = {
   from: "",
@@ -33,6 +34,7 @@ export default function DeliveriesPage() {
   const [devices, setDevices] = useState<AvailableDeviceDto[]>([]);
   const [carriers, setCarriers] = useState<CarrierDto[]>([]);
   const [settlementEnabled, setSettlementEnabled] = useState(false);
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -48,6 +50,7 @@ export default function DeliveriesPage() {
   const [finishingId, setFinishingId] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [fundingId, setFundingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -64,6 +67,7 @@ export default function DeliveriesPage() {
       setDevices(dev);
       setCarriers(car);
       setSettlementEnabled(cfg.settlementEnabled);
+      setAppConfig(cfg);
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : "Failed to load deliveries"
@@ -83,8 +87,8 @@ export default function DeliveriesPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      const amountHbar = amount.trim() ? Number(amount) : 0;
-      await registerDelivery(token, { ...form, amountHbar });
+      const amountEth = amount.trim() ? Number(amount) : 0;
+      await registerDelivery(token, { ...form, amountEth });
       setForm(emptyForm);
       setAmount("");
       await refresh();
@@ -143,6 +147,23 @@ export default function DeliveriesPage() {
       );
     } finally {
       setConfirmingId(null);
+    }
+  };
+
+  const onFundEscrow = async (delivery: DeliveryDto) => {
+    if (!appConfig) return;
+    setFundingId(delivery.id);
+    setRowError(null);
+    try {
+      await fundDeliveryEscrow(delivery, appConfig);
+      await confirmEscrow(token, delivery.id);
+      await refresh();
+    } catch (err) {
+      setRowError(
+        err instanceof Error ? err.message : "Failed to fund Sepolia escrow"
+      );
+    } finally {
+      setFundingId(null);
     }
   };
 
@@ -248,7 +269,7 @@ export default function DeliveriesPage() {
             options={carriers.map((c) => ({ value: c.id, label: c.name }))}
           />
           <TextField
-            label="Escrow amount (ℏ, optional)"
+            label="Escrow amount (ETH, optional)"
             placeholder="e.g. 50 — leave blank for no escrow"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -356,15 +377,26 @@ export default function DeliveriesPage() {
                       <div className="flex items-center justify-end gap-2">
                         {d.status === "ready" &&
                           d.settlementStatus === "awaiting_escrow" && (
-                            <button
-                              onClick={() => void onConfirmEscrow(d)}
-                              disabled={confirmingId === d.id}
-                              className="rounded-md border border-violet-200 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-50"
-                            >
-                              {confirmingId === d.id
-                                ? "Confirming..."
-                                : "Confirm escrow"}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => void onFundEscrow(d)}
+                                disabled={fundingId === d.id}
+                                className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                              >
+                                {fundingId === d.id
+                                  ? "Funding..."
+                                  : "Fund with wallet"}
+                              </button>
+                              <button
+                                onClick={() => void onConfirmEscrow(d)}
+                                disabled={confirmingId === d.id}
+                                className="rounded-md border border-violet-200 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+                              >
+                                {confirmingId === d.id
+                                  ? "Confirming..."
+                                  : "Already funded"}
+                              </button>
+                            </>
                           )}
                         {d.status === "ready" &&
                           d.settlementStatus !== "awaiting_escrow" && (
@@ -451,7 +483,7 @@ export default function DeliveriesPage() {
 
 /** Shows the escrow amount and settlement outcome for a delivery. */
 function EscrowCell({ delivery }: { delivery: DeliveryDto }) {
-  if (delivery.settlementStatus === "disabled" || delivery.amountHbar <= 0) {
+  if (delivery.settlementStatus === "disabled" || delivery.amountEth <= 0) {
     return <span className="text-xs text-slate-400">No escrow</span>;
   }
 
@@ -481,7 +513,7 @@ function EscrowCell({ delivery }: { delivery: DeliveryDto }) {
   return (
     <div className="space-y-1">
       <div className="font-mono text-xs text-slate-700">
-        {delivery.amountHbar} ℏ
+        {delivery.amountEth} ETH
       </div>
       <span
         className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${badge.className}`}

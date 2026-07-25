@@ -8,10 +8,9 @@ import { createUseCases } from "../../src/composition/use-cases.js";
 import type { Repositories } from "../../src/composition/repositories.js";
 import { Ed25519SignatureVerifier } from "../../src/infrastructure/crypto/ed25519-signature-verifier.js";
 import { Ed25519CommandSigner } from "../../src/infrastructure/crypto/ed25519-command-signer.js";
-import { NoopConsensusLog } from "../../src/infrastructure/hedera/noop-consensus-log.js";
-import { NoopConsensusReader } from "../../src/infrastructure/hedera/noop-consensus-reader.js";
-import { NoopEscrowGateway } from "../../src/infrastructure/hedera/noop-escrow-gateway.js";
+import { NoopEscrowGateway } from "../../src/infrastructure/ethereum/noop-escrow-gateway.js";
 import type { SettlementServices } from "../../src/composition/settlement.js";
+import { NoopConsensusLog } from "../../src/infrastructure/ethereum/noop-consensus-log.js";
 import { InMemoryDeviceRepository } from "../../src/infrastructure/persistence/in-memory-device-repository.js";
 import { InMemoryCarrierRepository } from "../../src/infrastructure/persistence/in-memory-carrier-repository.js";
 import { InMemoryDeliveryRepository } from "../../src/infrastructure/persistence/in-memory-delivery-repository.js";
@@ -63,9 +62,13 @@ export async function buildTestServer(
   };
 
   const settlement: SettlementServices = overrides.settlement ?? {
-    reader: new NoopConsensusReader(),
     escrow: new NoopEscrowGateway(),
-    config: { enabled: false, minTempC: 2, maxTempC: 8 },
+    config: {
+      enabled: false,
+      minTempC: 2,
+      maxTempC: 8,
+      requiredReadings: 2,
+    },
   };
 
   const useCases = createUseCases(
@@ -83,6 +86,14 @@ export async function buildTestServer(
     verifier: new StubTokenVerifier(),
     useCases,
     settlementEnabled: settlement.config.enabled,
+    escrowConfig: {
+      address: null,
+      chainId: 11155111,
+      minTempC: 2,
+      maxTempC: 8,
+      requiredReadings: 2,
+      durationSeconds: 3600,
+    },
   });
 
   await app.ready();

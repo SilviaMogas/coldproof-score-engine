@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { DeviceRepository } from "../../domain/device/device-repository.js";
 import type { DeliveryRepository } from "../../domain/delivery/delivery-repository.js";
-import { startDelivery } from "../../domain/delivery/delivery.js";
+import type { StartDelivery } from "./start-delivery.js";
 import type { SignatureVerifier } from "../ports/signature-verifier.js";
 import {
   ForbiddenError,
@@ -29,6 +29,8 @@ const messageSchema = z.object({
   nonce: z.string().min(1).max(128),
   ts: z.number().nonnegative(),
 });
+const MAX_REQUEST_AGE_SECONDS = 300;
+const MAX_FUTURE_SKEW_SECONDS = 60;
 
 /**
  * Starts a delivery when the box is physically sealed in the field.
@@ -39,10 +41,13 @@ const messageSchema = z.object({
  * "Start" click: closing the door and pressing the button once starts the trip.
  */
 export class SealDelivery {
+  private readonly usedRequests = new Set<string>();
+
   constructor(
     private readonly devices: DeviceRepository,
     private readonly deliveries: DeliveryRepository,
-    private readonly verifier: SignatureVerifier
+    private readonly verifier: SignatureVerifier,
+    private readonly starter: StartDelivery
   ) {}
 
   async execute(input: SealDeliveryInput): Promise<SealDecision> {
@@ -90,7 +95,20 @@ export class SealDelivery {
       throw new ForbiddenError(`device '${parsed.data.deviceId}' is revoked`);
     }
 
-    // 4. Find the device's delivery. Sealing again once in transit is a no-op.
+    const now = Math.floor(Date.now() / 1000);
+    if (
+      parsed.data.ts < now - MAX_REQUEST_AGE_SECONDS ||
+      parsed.data.ts > now + MAX_FUTURE_SKEW_SECONDS
+    ) {
+      throw new UnauthorizedError("seal request timestamp is stale");
+    }
+    const requestId = `${device.deviceId}:${parsed.data.nonce}`;
+    if (this.usedRequests.has(requestId)) {
+      throw new UnauthorizedError("seal request was already used");
+    }
+    this.usedRequests.add(requestId);
+
+    // 4. Find the device's delivery.
     const all = await this.deliveries.list();
     const active = all.find(
       (d) => d.deviceId === device.deviceId && d.status === "in_transit"
@@ -109,8 +127,7 @@ export class SealDelivery {
     }
 
     // 5. Start the trip.
-    const started = startDelivery(ready);
-    await this.deliveries.save(started);
+    const started = await this.starter.execute(ready.id);
     return { sealed: true, deliveryId: started.id };
   }
 }

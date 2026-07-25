@@ -4,7 +4,7 @@
  * The box carries temperature-critical medicines from A to B and stays locked
  * in transit. It:
  *   1. Reads the DS18B20 probe every cycle, signs the reading with its Ed25519
- *      device key and POSTs it to the backend (mirrored to Hedera HCS).
+ *      device key and POSTs it to the backend (anchored on Sepolia).
  *   2. Locks the latch when sealed and lights the LEDs by state.
  *   3. On the unlock button, asks the backend for permission. The backend only
  *      approves when the delivery is in transit and no reading breached the

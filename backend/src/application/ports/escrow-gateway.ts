@@ -1,20 +1,32 @@
-/** Receipt of an escrow HBAR transfer. */
+export type OnChainEscrowStatus =
+  | "none"
+  | "funded"
+  | "in_transit"
+  | "released"
+  | "refunded";
+
+export interface EscrowSnapshot {
+  payer: string | null;
+  payee: string | null;
+  deviceIdHash: string | null;
+  amountEth: number;
+  minTemperatureMilliC: number;
+  maxTemperatureMilliC: number;
+  requiredReadings: number;
+  compliantReadings: number;
+  violations: number;
+  status: OnChainEscrowStatus;
+}
+
 export interface EscrowTransfer {
   transactionId: string;
   status: string;
 }
 
-/**
- * Moves the escrowed HBAR held by the backend's operator (escrow) account.
- *
- * In this PoC the operator account acts as the escrow float: the shipper funds
- * it out-of-band, the backend confirms the balance covers the delivery, and on
- * settlement the backend (as operator) transfers the amount to the carrier or
- * refunds the shipper.
- */
+/** Sepolia contract operations needed by the application layer. */
 export interface EscrowGateway {
-  /** Current HBAR balance of the escrow (operator) account. */
-  balanceHbar(): Promise<number>;
-  /** Transfers `amountHbar` from the escrow account to `toAccountId`. */
-  transfer(toAccountId: string, amountHbar: number): Promise<EscrowTransfer>;
+  inspect(deliveryId: string): Promise<EscrowSnapshot>;
+  start(deliveryId: string): Promise<EscrowTransfer>;
+  release(deliveryId: string): Promise<EscrowTransfer>;
+  refund(deliveryId: string): Promise<EscrowTransfer>;
 }

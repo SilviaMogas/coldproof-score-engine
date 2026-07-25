@@ -31,8 +31,7 @@ async function main(): Promise<void> {
   logger.info(
     {
       enabled: settlement.config.enabled,
-      escrowAccount: settlement.config.enabled ? env.HEDERA_OPERATOR_ID : null,
-      shipperAccount: settlement.config.shipperAccountId ?? null,
+      escrowContract: env.SEPOLIA_ESCROW_ADDRESS ?? null,
     },
     "escrow settlement ready"
   );
@@ -61,6 +60,14 @@ async function main(): Promise<void> {
     verifier,
     useCases,
     settlementEnabled: settlement.config.enabled,
+    escrowConfig: {
+      address: env.SEPOLIA_ESCROW_ADDRESS ?? null,
+      chainId: 11155111,
+      minTempC: env.TEMP_MIN_C,
+      maxTempC: env.TEMP_MAX_C,
+      requiredReadings: env.ESCROW_REQUIRED_READINGS,
+      durationSeconds: env.ESCROW_DURATION_SECONDS,
+    },
   });
 
   try {

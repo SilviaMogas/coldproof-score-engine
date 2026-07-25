@@ -61,12 +61,11 @@ export function createUseCases(
   const { devices, carriers, deliveries, readings } = repos;
   const settleDelivery = new SettleDelivery(
     deliveries,
-    carriers,
-    settlement.reader,
     settlement.escrow,
     settlement.config
   );
   const finishDelivery = new FinishDelivery(deliveries, devices, settleDelivery);
+  const startDelivery = new StartDelivery(deliveries, settlement.escrow);
   return {
     registerDevice: new RegisterDevice(devices),
     listDevices: new ListDevices(devices, deliveries),
@@ -81,12 +80,23 @@ export function createUseCases(
       settlement.config.enabled
     ),
     listDeliveries: new ListDeliveries(deliveries, devices, carriers),
-    deleteDelivery: new DeleteDelivery(deliveries, devices),
-    startDelivery: new StartDelivery(deliveries),
+    deleteDelivery: new DeleteDelivery(
+      deliveries,
+      devices,
+      settlement.escrow,
+      settlement.config.enabled
+    ),
+    startDelivery,
     finishDelivery,
-    sealDelivery: new SealDelivery(devices, deliveries, signatureVerifier),
+    sealDelivery: new SealDelivery(
+      devices,
+      deliveries,
+      signatureVerifier,
+      startDelivery
+    ),
     confirmEscrow: new ConfirmEscrow(
       deliveries,
+      carriers,
       settlement.escrow,
       settlement.config
     ),
@@ -98,7 +108,8 @@ export function createUseCases(
       signatureVerifier,
       consensusLog,
       finishDelivery,
-      { minTempC: unlockPolicy.minTempC, maxTempC: unlockPolicy.maxTempC }
+      { minTempC: unlockPolicy.minTempC, maxTempC: unlockPolicy.maxTempC },
+      settlement.config.enabled
     ),
     listReadings: new ListReadings(readings),
     authorizeUnlock: new AuthorizeUnlock(

@@ -18,7 +18,7 @@ export default function CarriersPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [hederaAccountId, setHederaAccountId] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -52,10 +52,10 @@ export default function CarriersPage() {
     try {
       await registerCarrier(token, {
         name,
-        hederaAccountId: hederaAccountId.trim() || undefined,
+        walletAddress: walletAddress.trim() || undefined,
       });
       setName("");
-      setHederaAccountId("");
+      setWalletAddress("");
       await refresh();
     } catch (err) {
       setFormError(
@@ -93,12 +93,12 @@ export default function CarriersPage() {
           </label>
           <label className="block flex-1">
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Hedera account (optional)
+              Sepolia payout address (optional)
             </span>
             <input
-              value={hederaAccountId}
-              onChange={(e) => setHederaAccountId(e.target.value)}
-              placeholder="0.0.1234"
+              value={walletAddress}
+              onChange={(e) => setWalletAddress(e.target.value)}
+              placeholder="0x..."
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
             />
             <span className="mt-1 block text-xs text-slate-400">
@@ -147,7 +147,7 @@ export default function CarriersPage() {
               <thead className="border-t border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-6 py-3">Name</th>
-                  <th className="px-6 py-3">Hedera account</th>
+                  <th className="px-6 py-3">Sepolia address</th>
                   <th className="px-6 py-3">ID</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -159,7 +159,7 @@ export default function CarriersPage() {
                       {t.name}
                     </td>
                     <td className="px-6 py-3 font-mono text-xs text-slate-500">
-                      {t.hederaAccountId ?? (
+                      {t.walletAddress ?? (
                         <span className="font-sans text-slate-400">
                           Not set
                         </span>

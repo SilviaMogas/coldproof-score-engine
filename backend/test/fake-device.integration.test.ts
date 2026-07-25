@@ -97,7 +97,7 @@ test("ingests a valid signed reading (201)", async () => {
   assert.equal(body.deviceId, device.deviceId);
   assert.equal(body.temperatureC, 5.5);
   assert.equal(body.unit, "C");
-  // A no-op consensus log is used in tests, so nothing is mirrored to HCS.
+  // A no-op consensus log is used in tests, so nothing is sent to Sepolia.
   assert.equal(body.consensus, null);
 });
 

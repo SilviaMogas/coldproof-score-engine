@@ -20,7 +20,7 @@ const registerBody = z.object({
   boxContents: z.string().min(1),
   deviceId: z.string().min(1),
   carrierId: z.string().min(1),
-  amountHbar: z.coerce.number().nonnegative().optional().default(0),
+  amountEth: z.coerce.number().nonnegative().optional().default(0),
 });
 
 const idParams = z.object({
@@ -166,8 +166,9 @@ function toDto(d: DeliveryView) {
     deviceLabel: d.deviceLabel,
     carrierId: d.carrierId,
     carrierName: d.carrierName,
+    carrierWalletAddress: d.carrierWalletAddress,
     status: d.status,
-    amountHbar: d.amountHbar,
+    amountEth: d.amountEth,
     settlementStatus: d.settlementStatus,
     settlement: d.settlement,
     createdAt: d.createdAt.toISOString(),
@@ -184,7 +185,7 @@ function deliveryDto(d: Delivery) {
     deviceId: d.deviceId,
     carrierId: d.carrierId,
     status: d.status,
-    amountHbar: d.amountHbar,
+    amountEth: d.amountEth,
     settlementStatus: d.settlementStatus,
     settlement: d.settlement,
     createdAt: d.createdAt.toISOString(),

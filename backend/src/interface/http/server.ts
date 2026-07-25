@@ -19,8 +19,16 @@ export interface ServerDeps {
   corsOrigin: string[];
   verifier: TokenVerifier;
   useCases: UseCases;
-  /** Whether HBAR escrow settlement is configured on this server. */
+  /** Whether Sepolia escrow settlement is configured on this server. */
   settlementEnabled: boolean;
+  escrowConfig: {
+    address: string | null;
+    chainId: number;
+    minTempC: number;
+    maxTempC: number;
+    requiredReadings: number;
+    durationSeconds: number;
+  };
 }
 
 /**
@@ -86,7 +94,17 @@ export async function buildServer(deps: ServerDeps) {
   await app.register(cors, { origin: deps.corsOrigin });
   await app.register(authPlugin, { verifier: deps.verifier });
   await app.register(healthRoutes);
-  await app.register(configRoutes({ settlementEnabled: deps.settlementEnabled }));
+  await app.register(
+    configRoutes({
+      settlementEnabled: deps.settlementEnabled,
+      escrowAddress: deps.escrowConfig.address,
+      chainId: deps.escrowConfig.chainId,
+      minTempC: deps.escrowConfig.minTempC,
+      maxTempC: deps.escrowConfig.maxTempC,
+      requiredReadings: deps.escrowConfig.requiredReadings,
+      durationSeconds: deps.escrowConfig.durationSeconds,
+    })
+  );
   await app.register(deviceRoutes(deps.useCases));
   await app.register(carrierRoutes(deps.useCases));
   await app.register(deliveryRoutes(deps.useCases));

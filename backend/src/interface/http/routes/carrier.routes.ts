@@ -8,9 +8,9 @@ import { ValidationError } from "../../../shared/errors.js";
 
 const registerBody = z.object({
   name: z.string().min(1),
-  hederaAccountId: z
+  walletAddress: z
     .string()
-    .regex(/^\d+\.\d+\.\d+$/, "must be a Hedera account id like 0.0.1234")
+    .regex(/^0x[0-9a-fA-F]{40}$/, "must be a 20-byte EVM address")
     .optional(),
 });
 
@@ -83,6 +83,6 @@ function toDto(t: Carrier) {
   return {
     id: t.id,
     name: t.name,
-    hederaAccountId: t.hederaAccountId,
+    walletAddress: t.walletAddress,
   };
 }

@@ -7,7 +7,7 @@ import type { CarrierRepository } from "../../domain/carrier/carrier-repository.
 interface CarrierRow {
   id: string;
   name: string;
-  hedera_account_id: string | null;
+  wallet_address: string | null;
 }
 
 /**
@@ -29,33 +29,38 @@ export class SqliteCarrierRepository
       CREATE TABLE IF NOT EXISTS carriers (
         id                TEXT PRIMARY KEY,
         name              TEXT NOT NULL,
-        hedera_account_id TEXT
+        wallet_address TEXT
       );
     `);
     // Backfill the column for databases created before it existed.
-    const hasAccount = (
+    const columns = (
       this.db.prepare("PRAGMA table_info(carriers)").all() as {
         name: string;
       }[]
-    ).some((c) => c.name === "hedera_account_id");
-    if (!hasAccount) {
-      this.db.exec("ALTER TABLE carriers ADD COLUMN hedera_account_id TEXT");
+    );
+    if (!columns.some((c) => c.name === "wallet_address")) {
+      this.db.exec("ALTER TABLE carriers ADD COLUMN wallet_address TEXT");
+      if (columns.some((c) => c.name === "hedera_account_id")) {
+        this.db.exec(
+          "UPDATE carriers SET wallet_address = hedera_account_id WHERE hedera_account_id LIKE '0x%'"
+        );
+      }
     }
   }
 
   async save(carrier: Carrier): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO carriers (id, name, hedera_account_id)
-         VALUES (@id, @name, @hederaAccountId)
+        `INSERT INTO carriers (id, name, wallet_address)
+         VALUES (@id, @name, @walletAddress)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
-           hedera_account_id = excluded.hedera_account_id`
+           wallet_address = excluded.wallet_address`
       )
       .run({
         id: carrier.id,
         name: carrier.name,
-        hederaAccountId: carrier.hederaAccountId,
+        walletAddress: carrier.walletAddress,
       });
   }
 
@@ -82,6 +87,6 @@ function toCarrier(row: CarrierRow): Carrier {
   return {
     id: row.id,
     name: row.name,
-    hederaAccountId: row.hedera_account_id ?? null,
+    walletAddress: row.wallet_address ?? null,
   };
 }

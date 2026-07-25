@@ -5,7 +5,7 @@ import { ValidationError } from "../../shared/errors.js";
 export type DeliveryStatus = "ready" | "in_transit" | "finished";
 
 /**
- * Lifecycle of the HBAR escrow tied to a delivery:
+ * Lifecycle of the Sepolia ETH escrow tied to a delivery:
  * - `disabled`        : no escrow (amount 0, or settlement not configured)
  * - `awaiting_escrow` : created; waiting for the escrow account to be funded
  * - `escrowed`        : funds confirmed; the delivery may start
@@ -21,12 +21,12 @@ export type SettlementStatus =
   | "refunded"
   | "unsettled";
 
-/** Outcome of settling a delivery, computed purely from the HCS reading log. */
+/** Outcome of settling a delivery from the Sepolia escrow state. */
 export interface SettlementResult {
   verdict: "released" | "refunded" | "unsettled";
   /** Human-readable explanation of the verdict. */
   reason: string;
-  /** Number of readings found in the HCS log for this delivery's window. */
+  /** Number of readings recorded by the contract. */
   totalReadings: number;
   /** How many of those readings were out of range. */
   violations: number;
@@ -34,7 +34,7 @@ export interface SettlementResult {
   maxTempC: number | null;
   /** Account the funds moved to, or null if no transfer happened. */
   paidTo: string | null;
-  amountHbar: number;
+  amountEth: number;
   transactionId: string | null;
   settledAt: string;
 }
@@ -52,8 +52,8 @@ export interface Delivery {
   readonly deviceId: string;
   readonly carrierId: string;
   readonly status: DeliveryStatus;
-  /** HBAR held in escrow and released on a compliant delivery. */
-  readonly amountHbar: number;
+  /** ETH held in escrow and released on a compliant delivery. */
+  readonly amountEth: number;
   readonly settlementStatus: SettlementStatus;
   readonly settlement: SettlementResult | null;
   readonly createdAt: Date;
@@ -65,8 +65,8 @@ export interface CreateDeliveryProps {
   boxContents: string;
   deviceId: string;
   carrierId: string;
-  /** Amount to hold in escrow (HBAR). 0 means no settlement for this delivery. */
-  amountHbar?: number;
+  /** Amount to hold in escrow (ETH). 0 means no settlement for this delivery. */
+  amountEth?: number;
 }
 
 /**
@@ -79,7 +79,7 @@ export function createDelivery(props: CreateDeliveryProps): Delivery {
   const boxContents = props.boxContents?.trim();
   const deviceId = props.deviceId?.trim();
   const carrierId = props.carrierId?.trim();
-  const amountHbar = props.amountHbar ?? 0;
+  const amountEth = props.amountEth ?? 0;
 
   if (!from) {
     throw new ValidationError("from is required");
@@ -96,8 +96,8 @@ export function createDelivery(props: CreateDeliveryProps): Delivery {
   if (!carrierId) {
     throw new ValidationError("carrierId is required");
   }
-  if (!Number.isFinite(amountHbar) || amountHbar < 0) {
-    throw new ValidationError("amountHbar must be a non-negative number");
+  if (!Number.isFinite(amountEth) || amountEth < 0) {
+    throw new ValidationError("amountEth must be a non-negative number");
   }
 
   return {
@@ -108,8 +108,8 @@ export function createDelivery(props: CreateDeliveryProps): Delivery {
     deviceId,
     carrierId,
     status: "ready",
-    amountHbar,
-    settlementStatus: amountHbar > 0 ? "awaiting_escrow" : "disabled",
+    amountEth,
+    settlementStatus: amountEth > 0 ? "awaiting_escrow" : "disabled",
     settlement: null,
     createdAt: new Date(),
   };

@@ -18,7 +18,7 @@ export interface SettlementResult {
   minTempC: number | null;
   maxTempC: number | null;
   paidTo: string | null;
-  amountHbar: number;
+  amountEth: number;
   transactionId: string | null;
   settledAt: string;
 }
@@ -32,8 +32,9 @@ export interface DeliveryDto {
   deviceLabel: string | null;
   carrierId: string;
   carrierName: string | null;
+  carrierWalletAddress: string | null;
   status: DeliveryStatus;
-  amountHbar: number;
+  amountEth: number;
   settlementStatus: SettlementStatus;
   settlement: SettlementResult | null;
   createdAt: string;
@@ -51,7 +52,7 @@ export interface RegisterDeliveryInput {
   boxContents: string;
   deviceId: string;
   carrierId: string;
-  amountHbar?: number;
+  amountEth?: number;
 }
 
 export function listDeliveries(
