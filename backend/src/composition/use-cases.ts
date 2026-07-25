@@ -1,5 +1,6 @@
 import type { SignatureVerifier } from "../application/ports/signature-verifier.js";
 import type { ConsensusLog } from "../application/ports/consensus-log.js";
+import type { CommandSigner } from "../application/ports/command-signer.js";
 import type { Repositories } from "./repositories.js";
 import { RegisterDevice } from "../application/device/register-device.js";
 import { ListDevices } from "../application/device/list-devices.js";
@@ -15,6 +16,10 @@ import { FinishDelivery } from "../application/delivery/finish-delivery.js";
 import { ListAvailableDevices } from "../application/delivery/list-available-devices.js";
 import { IngestReading } from "../application/reading/ingest-reading.js";
 import { ListReadings } from "../application/reading/list-readings.js";
+import {
+  AuthorizeUnlock,
+  type UnlockPolicy,
+} from "../application/unlock/authorize-unlock.js";
 
 /** Every application use case, wired to its dependencies. */
 export interface UseCases {
@@ -32,6 +37,7 @@ export interface UseCases {
   listAvailableDevices: ListAvailableDevices;
   ingestReading: IngestReading;
   listReadings: ListReadings;
+  authorizeUnlock: AuthorizeUnlock;
 }
 
 /**
@@ -41,7 +47,9 @@ export interface UseCases {
 export function createUseCases(
   repos: Repositories,
   signatureVerifier: SignatureVerifier,
-  consensusLog: ConsensusLog
+  consensusLog: ConsensusLog,
+  commandSigner: CommandSigner,
+  unlockPolicy: UnlockPolicy
 ): UseCases {
   const { devices, carriers, deliveries, readings } = repos;
   return {
@@ -64,5 +72,13 @@ export function createUseCases(
       consensusLog
     ),
     listReadings: new ListReadings(readings),
+    authorizeUnlock: new AuthorizeUnlock(
+      devices,
+      deliveries,
+      readings,
+      signatureVerifier,
+      commandSigner,
+      unlockPolicy
+    ),
   };
 }

@@ -42,6 +42,15 @@ const schema = z.object({
   HEDERA_OPERATOR_ID: z.string().optional(),
   HEDERA_OPERATOR_KEY: z.string().optional(),
   HEDERA_TOPIC_ID: z.string().optional(),
+
+  // Secure-box unlock authorization. The backend signs unlock commands with
+  // this Ed25519 seed (32-byte hex); devices verify with the matching key. If
+  // omitted, an ephemeral key is generated (dev only). Unlock is refused when a
+  // reading breached [TEMP_MIN_C, TEMP_MAX_C]; commands expire after the TTL.
+  UNLOCK_SIGNING_KEY: z.string().optional(),
+  UNLOCK_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  TEMP_MIN_C: z.coerce.number().default(2),
+  TEMP_MAX_C: z.coerce.number().default(8),
 });
 
 export type Env = z.infer<typeof schema>;

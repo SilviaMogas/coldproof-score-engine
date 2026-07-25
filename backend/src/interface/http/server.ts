@@ -10,6 +10,7 @@ import { deviceRoutes } from "./routes/device.routes.js";
 import { carrierRoutes } from "./routes/carrier.routes.js";
 import { deliveryRoutes } from "./routes/delivery.routes.js";
 import { readingRoutes } from "./routes/reading.routes.js";
+import { unlockRoutes } from "./routes/unlock.routes.js";
 
 export interface ServerDeps {
   logger: Logger;
@@ -85,6 +86,7 @@ export async function buildServer(deps: ServerDeps) {
   await app.register(carrierRoutes(deps.useCases));
   await app.register(deliveryRoutes(deps.useCases));
   await app.register(readingRoutes(deps.useCases));
+  await app.register(unlockRoutes(deps.useCases));
 
   return app;
 }

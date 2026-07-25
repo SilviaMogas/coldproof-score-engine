@@ -2,6 +2,7 @@ import { loadEnv } from "./config/env.js";
 import { createLogger } from "./shared/logger.js";
 import { createRepositories } from "./composition/repositories.js";
 import { createConsensusLog } from "./composition/consensus-log.js";
+import { createCommandSigner } from "./composition/command-signer.js";
 import { createUseCases } from "./composition/use-cases.js";
 import { CognitoTokenVerifier } from "./infrastructure/auth/cognito-token-verifier.js";
 import { Ed25519SignatureVerifier } from "./infrastructure/crypto/ed25519-signature-verifier.js";
@@ -19,10 +20,21 @@ async function main(): Promise<void> {
   logger.info({ persistence: env.PERSISTENCE }, "repositories ready");
 
   const consensusLog = createConsensusLog(env, logger);
+  const commandSigner = createCommandSigner(env, logger);
+  logger.info(
+    { unlockPublicKey: commandSigner.publicKeyHex },
+    "unlock command signer ready"
+  );
   const useCases = createUseCases(
     repositories,
     new Ed25519SignatureVerifier(),
-    consensusLog
+    consensusLog,
+    commandSigner,
+    {
+      minTempC: env.TEMP_MIN_C,
+      maxTempC: env.TEMP_MAX_C,
+      ttlSeconds: env.UNLOCK_TTL_SECONDS,
+    }
   );
   const verifier = new CognitoTokenVerifier({
     userPoolId: env.COGNITO_USER_POOL_ID,

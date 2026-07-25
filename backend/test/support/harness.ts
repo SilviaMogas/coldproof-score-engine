@@ -7,6 +7,7 @@ import { UnauthorizedError } from "../../src/shared/errors.js";
 import { createUseCases } from "../../src/composition/use-cases.js";
 import type { Repositories } from "../../src/composition/repositories.js";
 import { Ed25519SignatureVerifier } from "../../src/infrastructure/crypto/ed25519-signature-verifier.js";
+import { Ed25519CommandSigner } from "../../src/infrastructure/crypto/ed25519-command-signer.js";
 import { NoopConsensusLog } from "../../src/infrastructure/hedera/noop-consensus-log.js";
 import { InMemoryDeviceRepository } from "../../src/infrastructure/persistence/in-memory-device-repository.js";
 import { InMemoryCarrierRepository } from "../../src/infrastructure/persistence/in-memory-carrier-repository.js";
@@ -51,7 +52,9 @@ export async function buildTestServer(): Promise<FastifyInstance> {
   const useCases = createUseCases(
     repos,
     new Ed25519SignatureVerifier(),
-    new NoopConsensusLog()
+    new NoopConsensusLog(),
+    new Ed25519CommandSigner(),
+    { minTempC: 2, maxTempC: 8, ttlSeconds: 60 }
   );
 
   const app = await buildServer({

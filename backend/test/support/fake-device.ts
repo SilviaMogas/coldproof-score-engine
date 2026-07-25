@@ -68,4 +68,15 @@ export class FakeDevice {
     this.seq += 1;
     return this.sign(this.buildMessage({ seq: this.seq, temperatureC, ts }));
   }
+
+  /** Builds the canonical unlock-request string the device signs for `/unlock`. */
+  buildUnlockMessage(nonce: string, ts?: number): string {
+    const t = ts ?? Math.floor(Date.now() / 1000);
+    return `{"deviceId":"${this.deviceId}","nonce":"${nonce}","ts":${t}}`;
+  }
+
+  /** Produces a signed unlock request envelope for the given nonce. */
+  requestUnlock(nonce: string, ts?: number): ReadingEnvelope {
+    return this.sign(this.buildUnlockMessage(nonce, ts));
+  }
 }
