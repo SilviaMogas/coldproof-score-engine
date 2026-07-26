@@ -1,0 +1,17 @@
+{
+  "data": {
+    "carriers": [
+      {
+        "carrierId": "COMPANY-001",
+        "ensName": "dhl-express.coldproof.eth",
+        "totalShipments": 100,
+        "completedShipments": 98,
+        "compliantShipments": 97,
+        "onTimeShipments": 95,
+        "incidents": 2,
+        "lastActivityTimestamp": "2026-07-25T00:00:00Z"
+      }
+    ],
+    "_meta": { "block": { "number": 0 } }
+  }
+}

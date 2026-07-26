@@ -1,0 +1,15 @@
+query CarrierMetrics {
+  carriers(first: 100) {
+    carrierId
+    ensName
+    totalShipments
+    completedShipments
+    compliantShipments
+    onTimeShipments
+    incidents
+    lastActivityTimestamp
+  }
+  _meta {
+    block { number }
+  }
+}
