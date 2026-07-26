@@ -3,7 +3,9 @@ import { buildScoreRecords, changedRecordKeys } from "../src/ens/score-records.j
 import { scoreCarrier } from "../src/scoring/score-engine.js";
 
 const metrics = {
-  carrierId: "X", ensName: "x.coldproof.eth", totalShipments: 100,
+  carrierId: "X", displayName: "Test Carrier", carrierType: "transport_company" as const,
+  ensName: "x.coldproof.eth", ensProfileUrl: "https://app.ens.dev/x.coldproof.eth",
+  totalShipments: 100,
   completedShipments: 90, compliantShipments: 90, onTimeShipments: 90, incidents: 0,
 };
 const model = { scoreVersion: "1.0", weights: { compliance: .5, onTime: .3, completion: .2 } };

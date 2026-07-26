@@ -2,7 +2,8 @@
 
 ColdProof converts aggregate carrier performance from The Graph into a
 deterministic reputation snapshot stored on each `*.coldproof.eth` ENSv2
-identity. This repository contains only that scoring pipeline.
+identity. The same repository includes the public ranking experience presented
+to ENS.
 
 ```mermaid
 flowchart LR
@@ -37,6 +38,17 @@ Requires Node.js 20 or newer.
 npm ci
 cp .env.example .env
 ```
+
+Run the presentation site locally:
+
+```bash
+npm run dev
+```
+
+The homepage separates transport companies and freelance carriers into two
+score-ranked columns. Selecting an identity opens its score breakdown and exact
+ENS profile. The bundled fixture is clearly marked as presentation data until
+real subgraph metrics are connected.
 
 Configure a Sepolia RPC URL and either a Graph endpoint or explicit fixture
 mode. Fixture mode is never enabled automatically:

@@ -10,7 +10,8 @@ import { endpointIdentifier, GraphClient } from "../graph/graph-client.js";
 import { scoreCarrier } from "../scoring/score-engine.js";
 
 interface AuditCarrier {
-  carrierId: string; ensName: string; previousScore?: string; newScore?: number;
+  carrierId: string; displayName: string; ensName: string; ensProfileUrl: string;
+  previousScore?: string; newScore?: number;
   previousGrade?: string; newGrade?: string; metrics?: object; rates?: object;
   dataHash?: string; action: "skipped" | "planned" | "applied" | "error";
   transactionHash?: string; error?: string;
@@ -68,6 +69,7 @@ export async function runScores(mode: "plan" | "sync"): Promise<void> {
       const keys = changedRecordKeys(current.records, records, config.scoreMinChange);
       const item: AuditCarrier = {
         carrierId: metrics.carrierId, ensName: metrics.ensName,
+        displayName: metrics.displayName, ensProfileUrl: metrics.ensProfileUrl,
         previousScore: current.records["com.coldproof.score"], newScore: result.score,
         previousGrade: current.records["com.coldproof.grade"], newGrade: result.grade,
         metrics, rates: {
@@ -83,10 +85,14 @@ export async function runScores(mode: "plan" | "sync"): Promise<void> {
         item.transactionHash = receipt.hash;
       }
       audit.push(item);
-      console.log(`${item.action.toUpperCase()} ${metrics.ensName}: ${item.previousScore ?? "unset"} -> ${result.score} (${result.grade})`);
+      console.log(`${item.action.toUpperCase()} ${metrics.carrierId} | ${metrics.displayName} | ${metrics.ensName} | ${metrics.ensProfileUrl} | ${item.previousScore ?? "unset"} -> ${result.score} (${result.grade})`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      audit.push({ carrierId: metrics.carrierId, ensName: metrics.ensName, action: "error", error: message });
+      audit.push({
+        carrierId: metrics.carrierId, displayName: metrics.displayName,
+        ensName: metrics.ensName, ensProfileUrl: metrics.ensProfileUrl,
+        action: "error", error: message,
+      });
       if (mode === "sync") {
         await saveReport(runTimestamp, config.model.scoreVersion, graphIdentifier, source, audit);
         throw error;

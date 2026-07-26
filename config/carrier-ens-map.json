@@ -1,5 +1,12 @@
 {
   "COMPANY-001": "dhl-express.coldproof.eth",
   "COMPANY-002": "maersk.coldproof.eth",
-  "COMPANY-003": "frio-express-sa.coldproof.eth"
+  "COMPANY-003": "frio-express-sa.coldproof.eth",
+  "COMPANY-004": "arcticline-transport.coldproof.eth",
+  "COMPANY-005": "polarroute-logistics.coldproof.eth",
+  "FREELANCE-001": "alex-rivera.coldproof.eth",
+  "FREELANCE-002": "maria-santos.coldproof.eth",
+  "FREELANCE-003": "daniel-costa.coldproof.eth",
+  "FREELANCE-004": "lucia-martins.coldproof.eth",
+  "FREELANCE-005": "omar-haddad.coldproof.eth"
 }

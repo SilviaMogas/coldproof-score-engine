@@ -3,7 +3,9 @@ import { scoreInputHash } from "../src/scoring/data-hash.js";
 import type { CarrierMetrics } from "../src/scoring/types.js";
 
 const input: CarrierMetrics = {
-  carrierId: "X", ensName: "x.coldproof.eth", totalShipments: 10,
+  carrierId: "X", displayName: "Test Carrier", carrierType: "transport_company",
+  ensName: "x.coldproof.eth", ensProfileUrl: "https://app.ens.dev/x.coldproof.eth",
+  totalShipments: 10,
   completedShipments: 9, compliantShipments: 8, onTimeShipments: 7, incidents: 1,
 };
 it("is deterministic and ignores non-score metadata", () => {

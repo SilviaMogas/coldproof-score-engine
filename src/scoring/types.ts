@@ -3,7 +3,10 @@ export type Grade = "A+" | "A" | "B" | "C" | "D" | "Risk" | "N/A";
 
 export interface CarrierMetrics {
   carrierId: string;
+  displayName: string;
+  carrierType: "transport_company" | "freelance_carrier";
   ensName: string;
+  ensProfileUrl: string;
   totalShipments: number;
   completedShipments: number;
   compliantShipments: number;

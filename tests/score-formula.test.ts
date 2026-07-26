@@ -4,7 +4,9 @@ import type { CarrierMetrics, ScoreModel } from "../src/scoring/types.js";
 
 const model: ScoreModel = { scoreVersion: "1.0", weights: { compliance: .5, onTime: .3, completion: .2 } };
 const metrics = (overrides: Partial<CarrierMetrics> = {}): CarrierMetrics => ({
-  carrierId: "X", ensName: "x.coldproof.eth", totalShipments: 100,
+  carrierId: "X", displayName: "Test Carrier", carrierType: "transport_company",
+  ensName: "x.coldproof.eth", ensProfileUrl: "https://app.ens.dev/x.coldproof.eth",
+  totalShipments: 100,
   completedShipments: 100, compliantShipments: 100, onTimeShipments: 100,
   incidents: 0, ...overrides,
 });

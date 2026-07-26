@@ -1,16 +1,16 @@
 {
   "data": {
     "carriers": [
-      {
-        "carrierId": "COMPANY-001",
-        "ensName": "dhl-express.coldproof.eth",
-        "totalShipments": 100,
-        "completedShipments": 98,
-        "compliantShipments": 97,
-        "onTimeShipments": 95,
-        "incidents": 2,
-        "lastActivityTimestamp": "2026-07-25T00:00:00Z"
-      }
+      { "carrierId": "COMPANY-001", "displayName": "DHL Express", "carrierType": "transport_company", "ensName": "dhl-express.coldproof.eth", "totalShipments": 1250, "completedShipments": 1238, "compliantShipments": 1225, "onTimeShipments": 1200, "incidents": 8, "lastActivityTimestamp": "2026-07-25T00:00:00Z" },
+      { "carrierId": "COMPANY-002", "displayName": "Maersk", "carrierType": "transport_company", "ensName": "maersk.coldproof.eth", "totalShipments": 980, "completedShipments": 965, "compliantShipments": 950, "onTimeShipments": 921, "incidents": 11, "lastActivityTimestamp": "2026-07-24T00:00:00Z" },
+      { "carrierId": "COMPANY-003", "displayName": "Frío Express S.A.", "carrierType": "transport_company", "ensName": "frio-express-sa.coldproof.eth", "totalShipments": 640, "completedShipments": 628, "compliantShipments": 620, "onTimeShipments": 598, "incidents": 6, "lastActivityTimestamp": "2026-07-25T00:00:00Z" },
+      { "carrierId": "COMPANY-004", "displayName": "ArcticLine Transport", "carrierType": "transport_company", "ensName": "arcticline-transport.coldproof.eth", "totalShipments": 475, "completedShipments": 462, "compliantShipments": 451, "onTimeShipments": 430, "incidents": 9, "lastActivityTimestamp": "2026-07-23T00:00:00Z" },
+      { "carrierId": "COMPANY-005", "displayName": "PolarRoute Logistics", "carrierType": "transport_company", "ensName": "polarroute-logistics.coldproof.eth", "totalShipments": 390, "completedShipments": 372, "compliantShipments": 365, "onTimeShipments": 348, "incidents": 12, "lastActivityTimestamp": "2026-07-22T00:00:00Z" },
+      { "carrierId": "FREELANCE-001", "displayName": "Alex Rivera", "carrierType": "freelance_carrier", "ensName": "alex-rivera.coldproof.eth", "totalShipments": 184, "completedShipments": 181, "compliantShipments": 179, "onTimeShipments": 176, "incidents": 2, "lastActivityTimestamp": "2026-07-25T00:00:00Z" },
+      { "carrierId": "FREELANCE-002", "displayName": "Maria Santos", "carrierType": "freelance_carrier", "ensName": "maria-santos.coldproof.eth", "totalShipments": 212, "completedShipments": 209, "compliantShipments": 205, "onTimeShipments": 199, "incidents": 3, "lastActivityTimestamp": "2026-07-25T00:00:00Z" },
+      { "carrierId": "FREELANCE-003", "displayName": "Daniel Costa", "carrierType": "freelance_carrier", "ensName": "daniel-costa.coldproof.eth", "totalShipments": 157, "completedShipments": 152, "compliantShipments": 149, "onTimeShipments": 143, "incidents": 5, "lastActivityTimestamp": "2026-07-24T00:00:00Z" },
+      { "carrierId": "FREELANCE-004", "displayName": "Lucia Martins", "carrierType": "freelance_carrier", "ensName": "lucia-martins.coldproof.eth", "totalShipments": 143, "completedShipments": 139, "compliantShipments": 136, "onTimeShipments": 132, "incidents": 4, "lastActivityTimestamp": "2026-07-23T00:00:00Z" },
+      { "carrierId": "FREELANCE-005", "displayName": "Omar Haddad", "carrierType": "freelance_carrier", "ensName": "omar-haddad.coldproof.eth", "totalShipments": 126, "completedShipments": 119, "compliantShipments": 116, "onTimeShipments": 112, "incidents": 7, "lastActivityTimestamp": "2026-07-22T00:00:00Z" }
     ],
     "_meta": { "block": { "number": 0 } }
   }

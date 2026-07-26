@@ -2,7 +2,8 @@ import { ensNormalize } from "ethers";
 import type { CarrierMetrics } from "../scoring/types.js";
 
 interface CarrierRow {
-  carrierId?: unknown; ensName?: unknown; totalShipments?: unknown;
+  carrierId?: unknown; displayName?: unknown; carrierType?: unknown;
+  ensName?: unknown; totalShipments?: unknown;
   completedShipments?: unknown; compliantShipments?: unknown;
   onTimeShipments?: unknown; incidents?: unknown; lastActivityTimestamp?: unknown;
 }
@@ -53,9 +54,19 @@ export function adaptCarrierMetrics(
     if (typeof row.carrierId !== "string" || !row.carrierId.trim()) {
       throw new Error(`Carrier row ${index} has no carrierId`);
     }
+    if (typeof row.displayName !== "string" || !row.displayName.trim()) {
+      throw new Error(`Carrier ${row.carrierId} has no displayName`);
+    }
+    if (row.carrierType !== "transport_company" && row.carrierType !== "freelance_carrier") {
+      throw new Error(`Carrier ${row.carrierId} has an invalid carrierType`);
+    }
+    const ensName = resolveCarrierEnsName(row.carrierId, row.ensName, mapping, parent);
     const base: CarrierMetrics = {
       carrierId: row.carrierId,
-      ensName: resolveCarrierEnsName(row.carrierId, row.ensName, mapping, parent),
+      displayName: row.displayName,
+      carrierType: row.carrierType,
+      ensName,
+      ensProfileUrl: `https://app.ens.dev/${ensName}`,
       totalShipments: integer(row.totalShipments, "totalShipments"),
       completedShipments: integer(row.completedShipments, "completedShipments"),
       compliantShipments: integer(row.compliantShipments, "compliantShipments"),

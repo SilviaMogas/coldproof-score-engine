@@ -1,6 +1,8 @@
 query CarrierMetrics {
   carriers(first: 100) {
     carrierId
+    displayName
+    carrierType
     ensName
     totalShipments
     completedShipments
