@@ -1,4 +1,5 @@
 import type { CarrierMetrics, ScoreResult } from "../scoring/types.js";
+import { attestationsHash, buildCarrierAttestations } from "../scoring/attestations.js";
 
 export const SCORE_KEYS = [
   "com.coldproof.score", "com.coldproof.grade", "com.coldproof.totalShipments",
@@ -8,6 +9,8 @@ export const SCORE_KEYS = [
   "com.coldproof.completionRate", "com.coldproof.scoreVersion",
   "com.coldproof.scoreStatus", "com.coldproof.scoreUpdatedAt",
   "com.coldproof.graphBlock", "com.coldproof.dataHash",
+  "com.coldproof.attestations", "com.coldproof.attestationCount",
+  "com.coldproof.attestationsHash", "com.coldproof.attestationsVersion",
 ] as const;
 export type ScoreKey = typeof SCORE_KEYS[number];
 export type ScoreRecords = Record<ScoreKey, string>;
@@ -15,6 +18,7 @@ export type ScoreRecords = Record<ScoreKey, string>;
 export function buildScoreRecords(
   metrics: CarrierMetrics, result: ScoreResult, updatedAt: string,
 ): ScoreRecords {
+  const attestations = buildCarrierAttestations(metrics, result);
   return {
     "com.coldproof.score": String(result.score),
     "com.coldproof.grade": result.grade,
@@ -31,6 +35,10 @@ export function buildScoreRecords(
     "com.coldproof.scoreUpdatedAt": updatedAt,
     "com.coldproof.graphBlock": metrics.graphBlockNumber === undefined ? "" : String(metrics.graphBlockNumber),
     "com.coldproof.dataHash": result.dataHash,
+    "com.coldproof.attestations": JSON.stringify(attestations),
+    "com.coldproof.attestationCount": String(attestations.length),
+    "com.coldproof.attestationsHash": attestationsHash(attestations),
+    "com.coldproof.attestationsVersion": "1.0",
   };
 }
 

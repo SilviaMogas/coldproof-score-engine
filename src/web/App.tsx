@@ -74,6 +74,22 @@ function Profile({ carrier, onClose }: { carrier: Carrier; onClose: () => void }
           <div><span>Completion</span><strong>{carrier.completionRate.toFixed(2)}%</strong></div>
           <div><span>Shipments</span><strong>{carrier.totalShipments.toLocaleString()}</strong></div>
         </div>
+        <section className="attestations" aria-labelledby="attestations-title">
+          <div className="attestations-head">
+            <div><span className="eyebrow">Onchain evidence</span><h3 id="attestations-title">Verified attestations</h3></div>
+            <span>{carrier.attestations.length} ENS properties</span>
+          </div>
+          <div className="attestation-list">
+            {carrier.attestations.map((attestation) => (
+              <div className="attestation" key={attestation.id}>
+                <i aria-hidden="true">✓</i>
+                <div><strong>{attestation.title}</strong><small>{attestation.evidence}</small></div>
+                <b>{attestation.value}</b>
+                <span>ENS</span>
+              </div>
+            ))}
+          </div>
+        </section>
         <div className="profile-footer"><span>{carrier.incidents} incidents recorded</span><a href={carrier.ensProfileUrl} target="_blank" rel="noreferrer">Open ENS profile</a></div>
       </article>
     </div>
