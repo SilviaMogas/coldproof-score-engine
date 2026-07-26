@@ -79,8 +79,8 @@ export async function runScores(mode: "plan" | "sync"): Promise<void> {
         dataHash: result.dataHash, action: keys.length === 0 ? "skipped" : "planned",
       };
       if (writer && keys.length) {
-        await writer.assertPermission(current.resolver, records, keys);
-        const receipt = await writer.write(current.resolver, records, keys);
+        await writer.assertPermission(metrics.ensName, current.resolver, records, keys);
+        const receipt = await writer.write(metrics.ensName, current.resolver, records, keys);
         item.action = "applied";
         item.transactionHash = receipt.hash;
       }

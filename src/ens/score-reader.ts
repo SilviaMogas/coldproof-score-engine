@@ -1,4 +1,4 @@
-import { AbiCoder, Contract, Interface, ZeroHash, getBytes, type Provider } from "ethers";
+import { AbiCoder, Contract, Interface, getBytes, namehash, type Provider } from "ethers";
 import { SCORE_KEYS, type ScoreRecords } from "./score-records.js";
 
 const UNIVERSAL_RESOLVER = "0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe";
@@ -26,7 +26,7 @@ export class EnsV2ScoreReader {
     const records: Partial<ScoreRecords> = {};
     let resolver = "";
     for (const key of SCORE_KEYS) {
-      const call = textInterface.encodeFunctionData("text", [ZeroHash, key]);
+      const call = textInterface.encodeFunctionData("text", [namehash(name), key]);
       try {
         const response = await this.universal.getFunction("resolve")(dnsEncode(name), call) as [string, string];
         resolver = response[1];
