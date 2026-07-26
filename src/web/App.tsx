@@ -67,7 +67,7 @@ function Profile({ carrier, onClose }: { carrier: Carrier; onClose: () => void }
           <div><h2 id="profile-title">{carrier.displayName}</h2><a href={carrier.ensProfileUrl} target="_blank" rel="noreferrer">{carrier.ensName} ↗</a></div>
           <ScoreRing value={carrier.score} />
         </div>
-        <div className="profile-grade"><span>ColdProof grade</span><strong>{carrier.grade}</strong><small>Model v1.0 · demo snapshot</small></div>
+        <div className="profile-grade"><span>ColdProof grade</span><strong>{carrier.grade}</strong><small>Model v1.0 · ENS verified snapshot</small></div>
         <div className="metrics">
           <div><span>Compliance</span><strong>{carrier.complianceRate.toFixed(2)}%</strong></div>
           <div><span>On time</span><strong>{carrier.onTimeRate.toFixed(2)}%</strong></div>
@@ -101,7 +101,7 @@ export function App() {
           <p>Reputation snapshots anchored to <a href="https://app.ens.dev/coldproof.eth" target="_blank" rel="noreferrer">coldproof.eth ↗</a></p>
         </div>
       </section>
-      <div className="demo-note"><span>Presentation dataset</span> Scores are calculated from reproducible demo shipment aggregates and are not yet written onchain.</div>
+      <div className="demo-note"><span>ENS verified</span> Reputation scores and supporting metrics are published on Sepolia under each carrier identity.</div>
       <section className="rankings">
         <Ranking eyebrow="Fleet operators" title="Transport companies" items={companies} onOpen={setSelected} />
         <Ranking eyebrow="Independent carriers" title="Freelancers" items={freelancers} onOpen={setSelected} />
