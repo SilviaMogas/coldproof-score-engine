@@ -3,10 +3,21 @@ import { carriers } from "./data";
 
 type Carrier = typeof carriers[number];
 
-function ScoreRing({ value }: { value: number }) {
-  const angle = value * 3.6;
+function BrandMark({ size = 34 }: { size?: number }) {
+  const arm = "M48 28V6 M40.64 17.15L48 21.4l7.36-4.25 M42.37 9.75L48 13l5.63-3.25";
   return (
-    <div className="score-ring" style={{ "--score-angle": `${angle}deg` } as React.CSSProperties}>
+    <svg width={size} height={size} viewBox="0 0 96 96" aria-label="ColdProof">
+      <g fill="none" stroke="currentColor" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round">
+        {[0, 60, 120, 180, 240, 300].map((rotation) => <path key={rotation} transform={`rotate(${rotation} 48 48)`} d={arm} />)}
+      </g>
+      <path d="M39.7 47.8l5.1 6 11.5-11.5" fill="none" stroke="#0FB5D6" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ScoreRing({ value }: { value: number }) {
+  return (
+    <div className="score-ring">
       <div><strong>{value}</strong><span>/100</span></div>
     </div>
   );
@@ -76,13 +87,13 @@ export function App() {
   return (
     <main>
       <header>
-        <a className="brand" href="#"><span className="brand-mark">CP</span><span>ColdProof</span></a>
+        <a className="brand" href="#"><BrandMark /><span>Cold<span>Proof</span></span></a>
         <div className="network"><i /> Sepolia · ENSv2</div>
       </header>
       <section className="hero">
         <div className="hero-copy">
           <span className="eyebrow">Cold-chain reputation layer</span>
-          <h1>Trust that<br /><em>travels.</em></h1>
+          <h1>Proof of delivery is not proof of <em>safe</em> delivery.</h1>
           <p>Comparable performance. Verifiable identity. One transparent score for every carrier moving temperature-sensitive goods.</p>
         </div>
         <div className="hero-proof">

@@ -7,3 +7,5 @@ data/
 *.db-shm
 *.db-wal
 reports/*.json
+
+.vercel
