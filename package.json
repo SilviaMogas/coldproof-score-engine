@@ -1,0 +1,27 @@
+{
+  "name": "coldproof-score-engine",
+  "version": "1.0.0",
+  "description": "Deterministic carrier reputation scoring from The Graph to ENSv2",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "scores:plan": "tsx src/commands/plan-scores.ts",
+    "scores:sync": "tsx src/commands/sync-scores.ts",
+    "scores:test": "vitest run",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4"
+  }
+}
