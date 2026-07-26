@@ -2,6 +2,7 @@ import type { CarrierMetrics, ScoreResult } from "../scoring/types.js";
 import { attestationsHash, buildCarrierAttestations } from "../scoring/attestations.js";
 
 export const SCORE_KEYS = [
+  "description",
   "com.coldproof.score", "com.coldproof.grade", "com.coldproof.totalShipments",
   "com.coldproof.completedShipments", "com.coldproof.compliantShipments",
   "com.coldproof.onTimeShipments", "com.coldproof.incidents",
@@ -17,9 +18,11 @@ export type ScoreRecords = Record<ScoreKey, string>;
 
 export function buildScoreRecords(
   metrics: CarrierMetrics, result: ScoreResult, updatedAt: string,
+  currentDescription = "",
 ): ScoreRecords {
   const attestations = buildCarrierAttestations(metrics, result);
   return {
+    description: mergeProfileAttestation(currentDescription, metrics, result),
     "com.coldproof.score": String(result.score),
     "com.coldproof.grade": result.grade,
     "com.coldproof.totalShipments": String(metrics.totalShipments),
@@ -40,6 +43,28 @@ export function buildScoreRecords(
     "com.coldproof.attestationsHash": attestationsHash(attestations),
     "com.coldproof.attestationsVersion": "1.0",
   };
+}
+
+const ATTESTATION_SEPARATOR = "\n\nColdProof attestation —";
+
+export function mergeProfileAttestation(
+  currentDescription: string,
+  metrics: CarrierMetrics,
+  result: ScoreResult,
+): string {
+  const previousAttestation = currentDescription.indexOf(ATTESTATION_SEPARATOR);
+  const baseDescription = (
+    previousAttestation >= 0
+      ? currentDescription.slice(0, previousAttestation)
+      : currentDescription
+  ).trim();
+  const attestation =
+    `ColdProof attestation — Score ${result.score}/100 (${result.grade}) · ` +
+    `${result.complianceRate.toFixed(2)}% compliance · ` +
+    `${result.onTimeRate.toFixed(2)}% on time · ` +
+    `${result.completionRate.toFixed(2)}% completion · ` +
+    `${metrics.incidents} incidents · Verified on Sepolia.`;
+  return baseDescription ? `${baseDescription}\n\n${attestation}` : attestation;
 }
 
 export function changedRecordKeys(

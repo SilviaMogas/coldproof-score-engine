@@ -65,7 +65,7 @@ export async function runScores(mode: "plan" | "sync"): Promise<void> {
     try {
       const result = scoreCarrier(metrics, config.model);
       const current = await reader.read(metrics.ensName);
-      const records = buildScoreRecords(metrics, result, runTimestamp);
+      const records = buildScoreRecords(metrics, result, runTimestamp, current.records.description);
       const keys = changedRecordKeys(current.records, records, config.scoreMinChange);
       const item: AuditCarrier = {
         carrierId: metrics.carrierId, ensName: metrics.ensName,

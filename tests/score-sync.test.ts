@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { buildScoreRecords, changedRecordKeys } from "../src/ens/score-records.js";
+import { buildScoreRecords, changedRecordKeys, mergeProfileAttestation } from "../src/ens/score-records.js";
 import { scoreCarrier } from "../src/scoring/score-engine.js";
 
 const metrics = {
@@ -17,4 +17,12 @@ it("skips a score change below threshold when nothing else changed", () => {
 it("updates when a supporting metric changes", () => {
   const previous = { ...next, "com.coldproof.score": "89", "com.coldproof.incidents": "1" };
   expect(changedRecordKeys(previous, next, 2)).toContain("com.coldproof.incidents");
+});
+it("preserves the ENS bio and replaces an existing visible attestation", () => {
+  const result = scoreCarrier(metrics, model);
+  const first = mergeProfileAttestation("Original carrier bio.", metrics, result);
+  const second = mergeProfileAttestation(first, metrics, { ...result, score: 91, grade: "A" });
+  expect(second).toContain("Original carrier bio.");
+  expect(second).toContain("Score 91/100 (A)");
+  expect(second.match(/ColdProof attestation/g)).toHaveLength(1);
 });
