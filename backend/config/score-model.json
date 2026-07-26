@@ -1,0 +1,8 @@
+{
+  "scoreVersion": "1.0",
+  "weights": {
+    "compliance": 0.5,
+    "onTime": 0.3,
+    "completion": 0.2
+  }
+}
